@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sprint Room — Peer Study Sprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="Create_Sprint.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <h1>Sprint Room</h1>
+        <p id="brandSub">Browse sprints and pick one to begin</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="pill" id="statusPill">Browsing</span>
+      <span class="timer" id="timerDisplay">--:--</span>
+    </div>
+  </header>
+
+  <div class="layout" id="mainLayout">
+
+    <!-- LEFT: Sprint list -->
+    <section class="panel sprint-panel">
+      <div class="panel-head">
+        <span>Available Sprints<span class="live-dot"></span></span>
+        <span class="muted">5 open now</span>
+      </div>
+      <div class="sprint-list" id="sprintList"></div>
+    </section>
+
+    <!-- LEFT 50% HALF WHEN LIVE: Video Stage Panel -->
+    <section class="panel stage-panel">
+      <div class="panel-head">
+        <span>Sprint Stage</span>
+        <span class="muted" id="stageHint">Pick a sprint from the list on the left</span>
+      </div>
+      <div class="stage-body">
+
+        <div class="stage-section active" id="stageIdle">
+          <svg class="idle-illustration" viewBox="0 0 480 260" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="480" height="150" fill="var(--paper-3)"/>
+            <g opacity="0.65">
+              <rect x="18" y="30" width="14" height="90" fill="var(--maroon)"/>
+              <rect x="34" y="20" width="12" height="100" fill="var(--navy)"/>
+              <rect x="48" y="38" width="10" height="82" fill="var(--gold-soft)"/>
+              <rect x="60" y="26" width="13" height="94" fill="var(--green)"/>
+              <rect x="75" y="34" width="11" height="86" fill="var(--maroon-2)"/>
+              <rect x="398" y="28" width="12" height="92" fill="var(--navy-2)"/>
+              <rect x="412" y="18" width="14" height="102" fill="var(--maroon)"/>
+              <rect x="428" y="36" width="10" height="84" fill="var(--gold-soft)"/>
+              <rect x="440" y="24" width="12" height="96" fill="var(--green-2)"/>
+            </g>
+            <ellipse cx="60" cy="34" rx="10" ry="4" fill="var(--gold-soft)" opacity="0.5"/>
+            <path d="M55 34 q5 -22 10 0" stroke="var(--gold-soft)" stroke-width="2" fill="none" opacity="0.7"/>
+            <rect x="0" y="150" width="480" height="20" fill="var(--wood-2)"/>
+            <rect x="0" y="168" width="480" height="70" fill="var(--wood)"/>
+            <rect x="40" y="238" width="16" height="18" fill="var(--wood-2)"/>
+            <rect x="420" y="238" width="16" height="18" fill="var(--wood-2)"/>
+            <g transform="translate(50,150) rotate(-6)">
+              <rect x="0" y="0" width="46" height="60" fill="var(--maroon)" stroke="var(--edge)"/>
+              <rect x="8" y="-8" width="46" height="60" fill="var(--navy)" stroke="var(--edge)"/>
+              <rect x="16" y="-16" width="46" height="60" fill="var(--gold-soft)" stroke="var(--edge)"/>
+            </g>
+            <g transform="translate(150,160)">
+              <path d="M0 40 Q45 10 90 40 L90 55 Q45 30 0 55 Z" fill="var(--paper)" stroke="var(--edge)"/>
+              <path d="M90 40 Q135 10 180 40 L180 55 Q135 30 90 55 Z" fill="var(--paper)" stroke="var(--edge)"/>
+              <path d="M10 32 Q45 18 80 32" stroke="var(--ink-soft)" stroke-width="1" fill="none" opacity="0.5"/>
+              <path d="M10 40 Q45 26 80 40" stroke="var(--ink-soft)" stroke-width="1" fill="none" opacity="0.5"/>
+              <path d="M100 32 Q135 18 170 32" stroke="var(--ink-soft)" stroke-width="1" fill="none" opacity="0.5"/>
+              <path d="M100 40 Q135 26 170 40" stroke="var(--ink-soft)" stroke-width="1" fill="none" opacity="0.5"/>
+            </g>
+            <g transform="translate(345,158)">
+              <rect x="0" y="10" width="70" height="22" rx="10" fill="var(--paper)" stroke="var(--gold-soft)" stroke-width="2"/>
+              <path d="M8 21 q15 -12 25 0 q15 12 29 0" stroke="var(--green-2)" stroke-width="1.4" fill="none" opacity="0.7"/>
+              <line x1="5" y1="10" x2="5" y2="32" stroke="var(--gold-soft)" stroke-width="2"/>
+              <line x1="65" y1="10" x2="65" y2="32" stroke="var(--gold-soft)" stroke-width="2"/>
+            </g>
+            <g transform="translate(400,190)">
+              <ellipse cx="10" cy="34" rx="12" ry="8" fill="var(--ink)"/>
+              <path d="M12 30 L34 4" stroke="var(--gold-soft)" stroke-width="3" stroke-linecap="round"/>
+              <path d="M34 4 Q40 6 36 12" stroke="var(--gold-soft)" stroke-width="3" fill="none" stroke-linecap="round"/>
+            </g>
+          </svg>
+          <h2>Choose a sprint to begin</h2>
+          <p>Pick any open sprint from the list on the left — the room will connect you and switch on the tools you need for it.</p>
+        </div>
+
+        <div class="stage-section" id="stageReview">
+          <div class="stage-card">
+            <div class="stage-eyebrow">Sprint details</div>
+            <h2 id="reviewTopic">Dynamic Programming</h2>
+            <p id="reviewMeta">45 min · Hosted by Aditi Sharma</p>
+            <ul class="req-list" id="reviewReqList"></ul>
+            <div class="stage-actions">
+              <button class="btn btn-reject" id="cancelReviewBtn">Cancel</button>
+              <button class="btn btn-accept" id="confirmJoinBtn">Confirm &amp; join</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stage-section" id="stageConnecting">
+          <div class="stage-card">
+            <div class="stage-eyebrow">Connecting</div>
+            <div class="spinner"></div>
+            <h2 id="connectingName">Connecting…</h2>
+            <p>Setting up your shared room.</p>
+          </div>
+        </div>
+
+        <!-- ACTIVE STAGE: Extended Video Column (Left Half) -->
+        <div class="stage-section" id="stageActive">
+          <div class="video-column-extended">
+            <!-- Top Box: Partner Stream -->
+            <div class="video-card-large">
+              <div class="avatar partner" id="partnerAvatar">A</div>
+              <div class="video-name" id="partnerNameLabel">Partner</div>
+              <div class="video-status" id="partnerStatus">Live</div>
+            </div>
+            <!-- Bottom Box: User Stream (Extended Below) -->
+            <div class="video-card-large">
+              <div class="avatar you">You</div>
+              <div class="video-name">You</div>
+              <div class="video-status" id="youStatus">Camera ready</div>
+              <div class="video-controls">
+                <button class="icon-btn" id="micBtn" title="Toggle microphone">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                </button>
+                <button class="icon-btn" id="camBtn" title="Toggle camera">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                </button>
+                <button class="icon-btn" id="handBtn" title="Raise hand">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M8 13V5a2 2 0 0 1 4 0v6"/><path d="M12 11V4a2 2 0 0 1 4 0v7"/><path d="M16 12V6a2 2 0 0 1 4 0v9a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3.4L4 15"/></svg>
+                </button>
+                <button class="icon-btn" id="shareBtn" title="Share screen">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="end-row">
+            <button class="btn-hangup" id="hangupBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a1 1 0 0 1 1.11-.21 12 12 0 0 0 3.68.59 1 1 0 0 1 1 1V19a1 1 0 0 1-1 1A18 18 0 0 1 3 4a1 1 0 0 1 1-1h2.99a1 1 0 0 1 1 1 12 12 0 0 0 .59 3.68 1 1 0 0 1-.21 1.11z"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              End sprint
+            </button>
+          </div>
+        </div>
+
+        <div class="stage-section" id="stageEnded">
+          <div class="stage-card">
+            <div class="stage-eyebrow">Sprint ended</div>
+            <h2>Nice work</h2>
+            <p id="endedSummary">You studied for 0 minutes.</p>
+            <div class="stage-actions">
+              <button class="btn btn-primary" id="backToListBtn">Back to sprint list</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- RIGHT 50% HALF WHEN LIVE: Stacked Tools & Workspace -->
+    <div class="right-half-stack" id="rightHalfStack">
+      
+      <!-- TOP BOX: Communication, Focus Sound & Report -->
+      <section class="tools-and-chat-panel">
+        <div class="panel-head">
+          <span>Communication &amp; Tools</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </div>
+        <div class="chat-and-tools-grid">
+          <div class="tools-block">
+            <p class="tools-title">Goals &amp; Sound</p>
+            <div class="goal-item" data-goal="1"><input type="checkbox" id="goal1"><label for="goal1">Understand problem</label></div>
+            <div class="goal-item" data-goal="2"><input type="checkbox" id="goal2"><label for="goal2">Discuss solution</label></div>
+            <div class="goal-item" data-goal="3"><input type="checkbox" id="goal3"><label for="goal3">Review edge cases</label></div>
+            <div class="goal-progress" id="goalProgress">0 of 3 complete</div>
+            <button class="focus-toggle" id="focusToggle">
+              <span>🎵 Focus sound</span>
+              <span id="focusState">Off</span>
+            </button>
+          </div>
+          <div class="chat-box-area">
+            <div class="chat-scroll" id="chatScroll">
+              <div class="msg system">Connected to private sprint chat.</div>
+            </div>
+            <div class="chat-input-row">
+              <input type="text" id="chatInput" placeholder="Message partner…">
+              <button class="btn btn-primary" id="chatSendBtn">Send</button>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-footer">
+          <button class="btn btn-report" id="reportBtn">Report / Complaint</button>
+        </div>
+      </section>
+
+      <!-- BOTTOM BOX: Workspace Tabs -->
+      <section class="workspace-panel">
+        <div class="workspace">
+          <div class="tabs" role="tablist">
+            <button class="tab-btn active" data-tab="notes">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              Notes
+            </button>
+            <button class="tab-btn" data-tab="practice">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Practice
+            </button>
+            <button class="tab-btn" data-tab="code" id="codeTabBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              Code
+            </button>
+            <button class="tab-btn" data-tab="browser">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Browser
+            </button>
+            <button class="tab-btn" data-tab="cursorai">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/></svg>
+              Cursor AI
+            </button>
+          </div>
+          <div class="tab-panels">
+            <div class="tab-content active" id="tab-notes">
+              <textarea id="notesArea" placeholder="Jot down formulas, ideas, doubts…"></textarea>
+              <div class="row-between">
+                <span class="muted" id="wordCount">0 words</span>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span class="save-flag" id="saveFlag">Saved ✓</span>
+                  <button class="btn btn-primary" id="saveNotesBtn">Save notes</button>
+                </div>
+              </div>
+            </div>
+            <div class="tab-content" id="tab-practice">
+              <div class="problem-card">
+                <div class="stamp" id="attemptStamp">ATTEMPTED</div>
+                <span class="diff-tag" id="practiceDiff">Medium</span>
+                <h3 id="practiceTitle">Longest Increasing Subsequence</h3>
+                <p id="practiceBody">Given an array of integers, find the length of the longest strictly increasing subsequence.</p>
+              </div>
+              <textarea id="practiceArea" placeholder="Write your approach or complexity analysis…"></textarea>
+              <div class="row-between">
+                <span class="muted">Shared scratchpad</span>
+                <button class="btn btn-outline" id="attemptBtn">Mark as attempted</button>
+              </div>
+            </div>
+            <div class="tab-content" id="tab-code">
+              <div class="code-toolbar">
+                <select id="langSelect">
+                  <option value="javascript">JavaScript</option>
+                  <option value="python">Python</option>
+                  <option value="java">Java</option>
+                  <option value="cpp">C++</option>
+                </select>
+                <button class="btn btn-primary" id="expandCodeBtn">Expand Editor ⤢</button>
+                <button class="btn btn-primary" id="runBtn">Run code</button>
+              </div>
+              <textarea id="codeArea" spellcheck="false">// write and run your code here!</textarea>
+              <div class="output-box" id="outputBox">Output will appear here.</div>
+            </div>
+            <div class="tab-content" id="tab-browser">
+              <form class="search-row" id="browserForm">
+                <input type="search" id="browserQuery" placeholder="Search the web…">
+                <button class="btn btn-primary" type="submit">Search</button>
+              </form>
+              <span class="muted">Opens in new tab</span>
+              <ul class="catalog">
+                <li><a href="https://developer.mozilla.org/" target="_blank" rel="noopener">MDN Web Docs <span class="tag">reference</span></a></li>
+                <li><a href="https://stackoverflow.com/" target="_blank" rel="noopener">Stack Overflow <span class="tag">Q&amp;A</span></a></li>
+                <li><a href="https://leetcode.com/" target="_blank" rel="noopener">LeetCode <span class="tag">practice</span></a></li>
+              </ul>
+            </div>
+            <div class="tab-content" id="tab-cursorai">
+              <div class="chat-scroll" id="aiScroll">
+                <div class="msg ai">I'm Cursor AI. Ask me for hints, debugging advice, or algorithm explanations.</div>
+              </div>
+              <div class="chat-input-row">
+                <input type="text" id="aiInput" placeholder="Ask Cursor AI…">
+                <button class="btn btn-primary" id="aiSendBtn">Ask</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- Code Workspace Modal (Big Screen for Coding) -->
+<div class="overlay" id="codeOverlay" hidden>
+  <div class="modal-card code-modal">
+    <div class="modal-head">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <h2 style="margin:0;">Code Workspace</h2>
+        <select id="modalLangSelect">
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="java">Java</option>
+          <option value="cpp">C++</option>
+          <option value="c">C</option>
+          <option value="csharp">C#</option>
+          <option value="python2">Python 2</option>
+          <option value="go">Go</option>
+          <option value="rust">Rust</option>
+          <option value="kotlin">Kotlin</option>
+          <option value="swift">Swift</option>
+          <option value="php">PHP</option>
+          <option value="ruby">Ruby</option>
+          <option value="dart">Dart</option>
+          <option value="typescript">TypeScript</option>
+          <option value="scala">Scala</option>
+          <option value="r">R</option>
+          <option value="perl">Perl</option>
+          <option value="lua">Lua</option>
+          <option value="haskell">Haskell</option>
+          <option value="julia">Julia</option>
+          <option value="pascal">Pascal</option>
+          <option value="fortran">Fortran</option>
+          <option value="cobol">COBOL</option>
+          <option value="objectivec">Objective-C</option>
+          <option value="fsharp">F#</option>
+        </select>
+      </div>
+      <button class="btn btn-outline" id="closeCodeModalBtn">Close ✕</button>
+    </div>
+    <div class="modal-code-body">
+      <textarea id="modalCodeArea" spellcheck="false"></textarea>
+      <div class="modal-code-actions">
+        <button class="btn btn-primary" id="modalRunBtn">Run Code</button>
+      </div>
+      <textarea
+        id="modalInputArea"
+        class="output-box"
+        placeholder="Enter program input here..."
+        spellcheck="false"
+      ></textarea>
+      <div class="output-box" id="modalOutputBox">Output will appear here.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Modal -->
+<div class="overlay" id="reportOverlay" hidden>
+  <div class="modal-card">
+    <h2>Report a problem</h2>
+    <div class="field">
+      <label for="reportReason">Reason</label>
+      <select id="reportReason">
+        <option>Inappropriate behavior</option>
+        <option>Technical issue</option>
+        <option>Partner didn't show up</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="reportDetails">Details</label>
+      <textarea id="reportDetails" rows="4" placeholder="Tell us what happened…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="reportCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="reportSubmitBtn">Submit report</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="Create_Sprint.js"></script>
+</body>
+</html>

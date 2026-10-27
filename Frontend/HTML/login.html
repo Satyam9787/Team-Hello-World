@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — MINI PROJECT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@500&family=Caveat:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="login.css">
+</head>
+<body class="login-page">
+
+<div class="grain" aria-hidden="true"></div>
+
+<header class="login-header">
+  <div class="wrap login-header-row">
+    <a class="brand" href="index">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M6 10 C6 8 8 7 20 7 C32 7 34 8 34 10 L34 30 C34 32 32 33 20 33 C8 33 6 32 6 30 Z" fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="20" y1="7" x2="20" y2="33" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="10" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1"/>
+        <line x1="10" y1="17" x2="16" y2="17" stroke="currentColor" stroke-width="1"/>
+        <line x1="24" y1="13" x2="30" y2="13" stroke="currentColor" stroke-width="1"/>
+        <line x1="24" y1="17" x2="30" y2="17" stroke="currentColor" stroke-width="1"/>
+      </svg>
+      <span>MINI PROJECT</span>
+    </a>
+  </div>
+</header>
+
+<main class="login-main">
+  <div class="wrap login-grid">
+
+    <!-- LEFT: atmosphere / activity panel -->
+    <aside class="login-panel" aria-hidden="true">
+      <div class="lamp-glow" aria-hidden="true"></div>
+      <div class="login-panel-inner">
+        <p class="eyebrow">Welcome back</p>
+        <h1 class="login-panel-title">The lamp is lit.<br>Your seat is kept.</h1>
+        <p class="login-panel-text">
+          Your circle picked up right where you left off. Sign in to see
+          what's been annotated since your last visit.
+        </p>
+
+        <div class="shelf-back login-shelf"></div>
+        <svg class="spines" viewBox="0 0 360 260" preserveAspectRatio="xMidYMax slice">
+          <g class="spine-row">
+            <rect x="10"  y="60" width="18" height="180" rx="2" class="s1"/>
+            <rect x="32"  y="40" width="14" height="200" rx="2" class="s2"/>
+            <rect x="50"  y="75" width="20" height="165" rx="2" class="s3"/>
+            <rect x="74"  y="30" width="16" height="210" rx="2" class="s4"/>
+            <rect x="94"  y="55" width="18" height="185" rx="2" class="s1"/>
+            <rect x="116" y="45" width="14" height="195" rx="2" class="s5"/>
+            <rect x="134" y="70" width="20" height="170" rx="2" class="s2"/>
+            <rect x="158" y="35" width="16" height="205" rx="2" class="s3"/>
+            <rect x="178" y="58" width="18" height="182" rx="2" class="s4"/>
+            <rect x="200" y="48" width="14" height="192" rx="2" class="s1"/>
+            <rect x="218" y="65" width="20" height="175" rx="2" class="s5"/>
+            <rect x="242" y="38" width="16" height="202" rx="2" class="s2"/>
+            <rect x="262" y="52" width="18" height="188" rx="2" class="s3"/>
+            <rect x="284" y="42" width="14" height="198" rx="2" class="s4"/>
+            <rect x="302" y="68" width="20" height="172" rx="2" class="s1"/>
+            <rect x="326" y="50" width="16" height="190" rx="2" class="s5"/>
+          </g>
+        </svg>
+
+        <div class="login-panel-stats">
+          <div><span>3</span>new sprints in your circle</div>
+          <div><span>2</span>margin notes awaiting reply</div>
+          <div><span>128,400</span>sprints completed, archive-wide</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT: the sign-in card -->
+    <section class="login-card-wrap">
+      <form class="library-card login-card" id="login-form" novalidate>
+        <div class="login-card-head">
+          <span class="card-code">READER · ACCESS</span>
+          <h2>Sign in to your reader's card</h2>
+          <p>Enter your details to rejoin your circle.</p>
+        </div>
+
+        <div class="card-row">
+          <span class="card-field-label">Email</span>
+          <input type="email" name="email" id="li-email" required autocomplete="email" placeholder="you@example.com">
+          <span class="field-error" id="li-err-email"></span>
+        </div>
+
+        <div class="card-row">
+          <span class="card-field-label">Password</span>
+          <div class="password-field">
+            <input type="password" name="password" id="li-password" required autocomplete="current-password" placeholder="Your password">
+            <button type="button" class="password-toggle" data-target="li-password" aria-label="Show password">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+          </div>
+          <span class="field-error" id="li-err-password"></span>
+        </div>
+
+        <div class="login-row-split">
+          <a href="forget" class="forgot-link" id="forgot-link">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn btn-primary card-submit">Enter the Reading Room</button>
+        <p class="card-status" id="login-status" role="status"></p>
+
+        <p class="login-switch">
+          New to Mini Project? <a href="signup">Register for a reader's card</a>
+        </p>
+      </form>
+    </section>
+
+  </div>
+</main>
+
+<footer class="login-footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <span>MINI PROJECT</span>
+      <p>A peer-to-peer mock sprint platform. Academic project, built as coursework.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="login.js"></script>
+</body>
+</html>

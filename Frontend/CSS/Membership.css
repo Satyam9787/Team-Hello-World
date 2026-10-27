@@ -1,0 +1,547 @@
+ *{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital@0;1&family=Cormorant+Garamond:wght@400;500;600&display=swap');
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Crimson Text', 'Garamond', serif;
+            background: linear-gradient(180deg, #1a1410 0%, #2d2620 30%, #3a3227 50%, #2d2620 70%, #1a1410 100%);
+            color: #4a4a3a;
+            min-height: 100vh;
+            padding: 3rem 2rem;
+            position: relative;
+        }
+
+        /* WOODEN TABLE TEXTURE BACKGROUND */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                /* Wood grain horizontal */
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(139, 115, 85, 0.08) 2px,
+                    rgba(139, 115, 85, 0.08) 4px
+                ),
+                /* Wood grain vertical */
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 80px,
+                    rgba(0, 0, 0, 0.12) 80px,
+                    rgba(0, 0, 0, 0.12) 81px
+                ),
+                /* Wood planks */
+                repeating-linear-gradient(
+                    90deg,
+                    #4a3f35 0px,
+                    #5a4f45 40px,
+                    #4a3f35 80px,
+                    #3a2f25 120px,
+                    #4a3f35 160px
+                ),
+                /* Subtle wood knots */
+                radial-gradient(circle 600px at 20% 30%, rgba(201, 168, 130, 0.15) 0%, transparent 100%),
+                radial-gradient(circle 500px at 80% 70%, rgba(139, 115, 85, 0.12) 0%, transparent 100%),
+                radial-gradient(circle 800px at 50% 50%, rgba(250, 248, 245, 0.02) 0%, transparent 100%);
+            background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+            background-attachment: fixed;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* SCATTERED BACKGROUND PAGES */
+        .background-pages {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .scattered-page {
+            position: absolute;
+            background: linear-gradient(135deg, #f5f1e8 0%, #f0e8dc 100%);
+            border: 1px solid #d4a574;
+            box-shadow: 
+                0 8px 24px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            opacity: 0.4;
+        }
+
+        .scattered-page.page1 {
+            width: 280px;
+            height: 380px;
+            top: 10%;
+            left: 5%;
+            transform: rotate(-15deg) perspective(800px) rotateY(-12deg);
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 20px,
+                    rgba(200, 180, 140, 0.1) 20px,
+                    rgba(200, 180, 140, 0.1) 21px
+                );
+        }
+
+        .scattered-page.page2 {
+            width: 300px;
+            height: 400px;
+            top: 45%;
+            right: 8%;
+            transform: rotate(12deg) perspective(800px) rotateY(10deg);
+            opacity: 0.3;
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 20px,
+                    rgba(200, 180, 140, 0.1) 20px,
+                    rgba(200, 180, 140, 0.1) 21px
+                );
+        }
+
+        .scattered-page.page3 {
+            width: 260px;
+            height: 360px;
+            top: 65%;
+            left: 12%;
+            transform: rotate(8deg) perspective(800px) rotateY(8deg);
+            opacity: 0.35;
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 20px,
+                    rgba(200, 180, 140, 0.1) 20px,
+                    rgba(200, 180, 140, 0.1) 21px
+                );
+        }
+
+        .scattered-page.page4 {
+            width: 290px;
+            height: 390px;
+            top: 20%;
+            right: 15%;
+            transform: rotate(-8deg) perspective(800px) rotateY(-10deg);
+            opacity: 0.32;
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 20px,
+                    rgba(200, 180, 140, 0.1) 20px,
+                    rgba(200, 180, 140, 0.1) 21px
+                );
+        }
+
+        /* DECORATIVE ELEMENTS */
+        .desk-ornaments {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            pointer-events: none;
+            font-size: 3rem;
+            opacity: 0.08;
+            color: #8b7355;
+        }
+
+        .ornament {
+            position: absolute;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        }
+
+        .ornament1 { top: 5%; left: 3%; font-size: 4rem; opacity: 0.15; }
+        .ornament2 { top: 15%; right: 4%; font-size: 3.5rem; opacity: 0.12; }
+        .ornament3 { top: 60%; left: 2%; font-size: 3rem; opacity: 0.1; }
+        .ornament4 { bottom: 15%; right: 3%; font-size: 3.5rem; opacity: 0.12; }
+        .ornament5 { top: 35%; right: 25%; font-size: 2.5rem; opacity: 0.08; }
+
+        /* LIGHTING OVERLAY */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at 50% 50%, rgba(201, 168, 130, 0.1) 0%, transparent 70%);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* MAIN CONTENT */
+        .content-wrapper {
+            position: relative;
+            z-index: 3;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .title-section {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .main-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 4rem;
+            font-weight: 600;
+            color: #5d4e37;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .main-subtitle {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.5rem;
+            color: #8b7355;
+            letter-spacing: 2px;
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+            font-style: italic;
+        }
+
+        .ornamental-divider {
+            font-size: 1.5rem;
+            color: #c9a882;
+            letter-spacing: 3px;
+            margin: 1.5rem 0;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, rgba(250, 248, 245, 0.95) 0%, rgba(245, 241, 232, 0.95) 100%);
+            border: 2px solid #d4a574;
+            border-left: 5px solid #8b7355;
+            padding: 2.5rem;
+            margin: 2rem 0 4rem;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(8px);
+        }
+
+        .intro-box h2 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.7rem;
+            color: #5d4e37;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .intro-box p {
+            font-size: 1.05rem;
+            color: #6a5d50;
+            line-height: 1.9;
+        }
+
+        .membership-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 3rem;
+            margin: 4rem 0;
+        }
+
+        .membership-page {
+            background: linear-gradient(135deg, #fefdfb 0%, #faf8f5 50%, #f5f1e8 100%);
+            border: 3px solid #d4a574;
+            border-left: 5px solid #8b7355;
+            padding: 3rem;
+            position: relative;
+            box-shadow: 
+                0 20px 50px rgba(0, 0, 0, 0.35),
+                -5px 10px 25px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            transform: perspective(1200px) rotateX(0.5deg) rotateY(-0.3deg);
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        .membership-page::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #c9a882, transparent);
+        }
+
+        .membership-page::after {
+            content: "";
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            right: 3px;
+            bottom: 3px;
+            border: 1px dashed #d4a574;
+            opacity: 0.25;
+            pointer-events: none;
+        }
+
+        .membership-page:hover {
+            transform: perspective(1200px) translateY(-12px) rotateX(3deg) rotateY(-1deg);
+            box-shadow: 
+                0 30px 70px rgba(0, 0, 0, 0.4),
+                -8px 15px 40px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8),
+                0 0 40px rgba(201, 168, 130, 0.4);
+            border-color: #8b7355;
+        }
+
+        .page-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .tier-badge-top {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.75rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #8b7355;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+            display: block;
+        }
+
+        .tier-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 2.4rem;
+            font-weight: 600;
+            color: #5d4e37;
+            margin-bottom: 1.5rem;
+            border-bottom: 3px solid #d4a574;
+            padding-bottom: 1.2rem;
+        }
+
+        .price-box {
+            background: linear-gradient(135deg, #f5f1e8 0%, #ede5d5 100%);
+            padding: 1.8rem;
+            margin: 1.8rem 0;
+            border-left: 5px solid #c9a882;
+            text-align: center;
+            box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .price-amount {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 3rem;
+            font-weight: 600;
+            color: #5d4e37;
+            line-height: 1;
+            margin-bottom: 0.4rem;
+        }
+
+        .price-amount.free {
+            color: #6ba856;
+        }
+
+        .price-frequency {
+            font-size: 0.9rem;
+            color: #8b7355;
+            letter-spacing: 1px;
+            font-style: italic;
+        }
+
+        .tier-description {
+            background-color: #f5f1e8;
+            padding: 1.5rem;
+            margin: 1.8rem 0;
+            border-left: 4px solid #c9a882;
+            font-size: 0.95rem;
+            color: #6a5d50;
+            line-height: 1.8;
+            font-style: italic;
+        }
+
+        .benefits-header {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #5d4e37;
+            margin: 1.5rem 0 1rem;
+            font-weight: 600;
+            border-top: 1px solid #e8dcc8;
+            padding-top: 1rem;
+        }
+
+        .benefit-list {
+            margin-bottom: 1.5rem;
+        }
+
+        .benefit-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 0.9rem;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #6a5d50;
+        }
+
+        .benefit-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 12px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .benefit-item.highlight {
+            color: #5d4e37;
+            font-weight: 600;
+            margin-bottom: 0.6rem;
+        }
+
+        .benefit-item.highlight .benefit-icon::before {
+            content: "📚";
+        }
+
+        .benefit-item .benefit-icon::before {
+            content: "✦";
+            color: #c9a882;
+        }
+
+        .cta-button {
+            width: 100%;
+            padding: 1.2rem;
+            margin-top: 2rem;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border: 2px solid #8b7355;
+            background-color: #8b7355;
+            color: #faf8f5;
+            box-shadow: 0 6px 16px rgba(93, 78, 55, 0.25);
+        }
+
+        .cta-button:hover {
+            background-color: #5d4e37;
+            border-color: #5d4e37;
+            box-shadow: 0 12px 28px rgba(93, 78, 55, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .cta-button.free {
+            background-color: transparent;
+            color: #8b7355;
+            border: 2px solid #8b7355;
+        }
+
+        .cta-button.free:hover {
+            background-color: #8b7355;
+            color: #faf8f5;
+        }
+
+        .featured-badge {
+            position: absolute;
+            top: -15px;
+            left: 25px;
+            background-color: #5d4e37;
+            color: #faf8f5;
+            padding: 0.6rem 1.5rem;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+            font-weight: 600;
+            transform: rotate(-3deg);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+            border: 2px solid #8b7355;
+        }
+
+        .footer-section {
+            text-align: center;
+            margin-top: 5rem;
+            padding: 3rem 2rem;
+            background: linear-gradient(135deg, rgba(250, 248, 245, 0.85) 0%, rgba(245, 241, 232, 0.85) 100%);
+            border: 2px solid #d4a574;
+            backdrop-filter: blur(10px);
+        }
+
+        .footer-seal {
+            font-size: 3.5rem;
+            margin: 1.5rem 0;
+            opacity: 0.4;
+        }
+
+        .footer-section h3 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.8rem;
+            color: #5d4e37;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .footer-section p {
+            color: #8b7355;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2.5rem;
+            }
+
+            .membership-grid {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+
+            .scattered-page {
+                display: none;
+            }
+
+            .membership-page {
+                padding: 2rem;
+            }
+
+            .price-amount {
+                font-size: 2.2rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .membership-page {
+                transition: none;
+            }
+            .cta-button {
+                transition: none;
+            }
+        }

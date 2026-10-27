@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation - StudyCircle</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="Order_list1.css">
+</head>
+<body>
+    <div class="background-pages">
+        <div class="scattered-page page1"></div>
+        <div class="scattered-page page2"></div>
+    </div>
+
+    <div class="desk-ornaments">
+        <div class="ornament ornament1">🕯️</div>
+        <div class="ornament ornament2">🖋️</div>
+    </div>
+
+    <div class="content-wrapper">
+        <div class="header-section">
+            <div class="success-icon">✓</div>
+            <h1 class="header-title">Order Confirmed</h1>
+            <p class="header-subtitle">Welcome to your scholarly journey</p>
+        </div>
+
+        <div class="order-receipt">
+            <div class="receipt-header">
+                <h2>Order Receipt & Membership Details</h2>
+                <div class="receipt-seal">📜</div>
+            </div>
+
+            <div class="order-grid">
+                <div class="order-column">
+                    <div class="order-label">Tier Selected</div>
+                    <div class="order-value highlight" id="tierName">Scholar</div>
+
+                    <div class="order-label">Order ID</div>
+                    <div class="order-value" id="orderId">SC-2026-0847392</div>
+
+                    <div class="order-label">Order Date</div>
+                    <div class="order-value" id="orderDate">September 25, 2026</div>
+                </div>
+
+                <div class="order-column">
+                    <div class="order-label">Subscription Start</div>
+                    <div class="order-value" id="startDate">Immediately Active</div>
+
+                    <div class="order-label">Billing Cycle</div>
+                    <div class="order-value" id="billingCycle">Monthly • Auto-Renews</div>
+
+                    <div class="order-label">Time Processed</div>
+                    <div class="order-value" id="orderTime">02:35 PM IST</div>
+                </div>
+            </div>
+
+            <div class="divider-line"></div>
+
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span>Membership Tier</span>
+                    <strong id="tierDisplay">Scholar</strong>
+                </div>
+                <div class="summary-row">
+                    <span>Monthly Fee</span>
+                    <strong id="monthlyFee">₹1299</strong>
+                </div>
+                <div class="summary-row">
+                    <span>GST (18%)</span>
+                    <strong id="gst">₹53.82</strong>
+                </div>
+                <div class="summary-row total">
+                    <span>Total Amount Charged</span>
+                    <strong id="totalAmount">₹1252.82</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAYMENT SECTION -->
+        <div class="payment-section">
+            <h3><i class="fas fa-credit-card"></i> Select Payment Method</h3>
+            
+            <div class="payment-options">
+                <div class="payment-option" onclick="selectPayment('upi')">
+                    <div class="payment-icon">📱</div>
+                    <div class="payment-label">UPI</div>
+                </div>
+                <div class="payment-option" onclick="selectPayment('card')">
+                    <div class="payment-icon">💳</div>
+                    <div class="payment-label">Card</div>
+                </div>
+                <div class="payment-option" onclick="selectPayment('netbanking')">
+                    <div class="payment-icon">🏦</div>
+                    <div class="payment-label">NetBanking</div>
+                </div>
+                <div class="payment-option" onclick="selectPayment('wallet')">
+                    <div class="payment-icon">👜</div>
+                    <div class="payment-label">Digital Wallet</div>
+                </div>
+            </div>
+
+            <!-- UPI Input -->
+            <div class="payment-input-box" id="upiBox">
+                <h4>UPI Payment Details</h4>
+                <div class="input-field">
+                    <label>UPI ID</label>
+                    <input type="text" placeholder="yourname@upi" id="upiId">
+                </div>
+            </div>
+
+            <!-- Card Input -->
+            <div class="payment-input-box" id="cardBox">
+                <h4>Credit/Debit Card Details</h4>
+                <div class="input-field">
+                    <label>Card Number</label>
+                    <input type="text" placeholder="1234 5678 9012 3456" id="cardNumber" maxlength="19">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="input-field">
+                        <label>Expiry (MM/YY)</label>
+                        <input type="text" placeholder="MM/YY" id="cardExpiry" maxlength="5">
+                    </div>
+                    <div class="input-field">
+                        <label>CVV</label>
+                        <input type="text" placeholder="123" id="cardCvv" maxlength="3">
+                    </div>
+                </div>
+                <div class="input-field">
+                    <label>Cardholder Name</label>
+                    <input type="text" placeholder="Name on Card" id="cardholderName">
+                </div>
+            </div>
+
+            <!-- NetBanking Input -->
+            <div class="payment-input-box" id="netbankingBox">
+                <h4>NetBanking Details</h4>
+                <div class="input-field">
+                    <label>Select Bank</label>
+                    <select id="bankSelect" style="width: 100%; padding: 0.8rem; border: 1px solid #d4a574; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 1rem;">
+                        <option value="">Choose Your Bank</option>
+                        <option value="sbi">State Bank of India (SBI)</option>
+                        <option value="hdfc">HDFC Bank</option>
+                        <option value="icici">ICICI Bank</option>
+                        <option value="axis">Axis Bank</option>
+                        <option value="pnb">Punjab National Bank (PNB)</option>
+                        <option value="boi">Bank of India (BOI)</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label>Customer ID</label>
+                    <input type="text" placeholder="Your Customer ID" id="customerId">
+                </div>
+            </div>
+
+            <!-- Wallet Input -->
+            <div class="payment-input-box" id="walletBox">
+                <h4>Digital Wallet Details</h4>
+                <div class="input-field">
+                    <label>Select Wallet</label>
+                    <select id="walletSelect" style="width: 100%; padding: 0.8rem; border: 1px solid #d4a574; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 1rem;">
+                        <option value="">Choose Your Wallet</option>
+                        <option value="paytm">Paytm</option>
+                        <option value="googlepay">Google Pay</option>
+                        <option value="phonepe">PhonePe</option>
+                        <option value="amazonpay">Amazon Pay</option>
+                    </select>
+                </div>
+                <div class="input-field">
+                    <label>Wallet Phone Number</label>
+                    <input type="tel" placeholder="Your Phone Number" id="walletPhone">
+                </div>
+            </div>
+        </div>
+
+        <!-- BENEFITS SECTION - ARTISTIC MODERN DESIGN -->
+        <div class="benefits-section">
+            <h2 class="benefits-title">✨ Your Membership Benefits ✨</h2>
+            
+            <div class="comparison-grid">
+                <!-- Before Membership -->
+                <div class="benefit-column before">
+                    <h3>Before</h3>
+                    <div class="benefit-item highlight">Community Explorer</div>
+                    <div class="benefit-item">Public study circles only</div>
+                    <div class="benefit-item">Basic learning resources</div>
+                    <div class="benefit-item">Community forums access</div>
+                    <div class="benefit-item">Standard support</div>
+                    <div class="benefit-item">No mentorship</div>
+                </div>
+
+                <!-- After Membership -->
+                <div class="benefit-column after">
+                    <h3>After Your Purchase</h3>
+                    <div class="benefit-item highlight">Private Study Circles Access</div>
+                    <div class="benefit-item">Create exclusive study groups</div>
+                    <div class="benefit-item">Advanced curated materials</div>
+                    <div class="benefit-item">Peer feedback system</div>
+                    <div class="benefit-item">Bi-weekly expert webinars</div>
+                    <div class="benefit-item">Priority community support</div>
+                    <div class="benefit-item">Detailed progress analytics</div>
+                    <div class="benefit-item">Participation certificates</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="divider-line"></div>
+
+        <!-- TERMS AND CONDITIONS -->
+        <div class="terms-section">
+            <div class="terms-checkbox">
+                <input type="checkbox" id="termsCheckbox" class="checkbox-input">
+                <div class="terms-text">
+                    I agree to the <a href="#terms" class="terms-link">Terms and Conditions</a> and <a href="#privacy" class="terms-link">Privacy Policy</a>. I understand that my membership will auto-renew monthly and I can cancel anytime.
+                </div>
+            </div>
+        </div>
+
+        <!-- ACTION BUTTONS -->
+        <div class="action-buttons">
+            <button class="btn" id="proceedBtn" disabled onclick="proceedPayment()">
+                Proceed to Payment
+            </button>
+        </div>
+
+        <div style="text-align: center; margin-top: 1.5rem;">
+            <a href="/Membership" class="btn secondary" style="margin-top: 1rem;">Back to Membership</a>
+        </div>
+    </div>
+
+    <script src="Order_list1.js"></script>
+</body>
+</html>

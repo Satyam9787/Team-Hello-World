@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join the Sprint — MINI PROJECT</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="signup.css">
+</head>
+
+<body>
+
+<div class="page-shell">
+
+  <header class="topbar">
+
+    <a class="brand" href="#">
+      <span class="brand-mark">M</span>
+      <span>MINI PROJECT</span>
+    </a>
+
+    <p class="topbar-copy">
+      Already have an account?
+      <a href="login" id="loginLink">Sign in</a>
+    </p>
+
+  </header>
+
+  <main class="signup-layout">
+
+    <section class="intro-panel">
+
+      <span class="eyebrow">Peer-to-peer mock sprints</span>
+
+      <h1>
+        Practice together.<br>
+        <span class="h1-second">Perform better.</span>
+      </h1>
+
+      <p class="intro-text">
+        Build realistic sprints, challenge your peers, and turn every session
+        into useful feedback.
+      </p>
+
+      <div class="mini-process">
+
+        <div class="process-item">
+          <span class="step-no">I</span>
+
+          <div>
+            <strong>Create or join</strong>
+            <p>Start a sprint or enter a Sprint ID.</p>
+          </div>
+        </div>
+
+        <div class="process-line"></div>
+
+        <div class="process-item">
+          <span class="step-no">II</span>
+
+          <div>
+            <strong>Challenge &amp; solve</strong>
+            <p>Work through timed tasks with your peer.</p>
+          </div>
+        </div>
+
+        <div class="process-line"></div>
+
+        <div class="process-item">
+          <span class="step-no">III</span>
+
+          <div>
+            <strong>Review &amp; improve</strong>
+            <p>Exchange feedback and track your progress.</p>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="quote-card">
+        <span class="quote-mark">“</span>
+        <p>Don't just prepare for the interview. Practice performing.</p>
+      </div>
+
+      <!-- decorative bookshelf -->
+      <div class="shelf" aria-hidden="true">
+        <span style="--h:74%;--w:22px;--c:#6b4630"></span>
+        <span style="--h:92%;--w:18px;--c:#4a3022"></span>
+        <span style="--h:64%;--w:26px;--c:#9a6b3f"></span>
+        <span style="--h:84%;--w:16px;--c:#e9dcc2"></span>
+        <span style="--h:98%;--w:24px;--c:#5a3a28"></span>
+        <span style="--h:70%;--w:20px;--c:#7c5236"></span>
+        <span style="--h:88%;--w:28px;--c:#3a261b"></span>
+        <span style="--h:60%;--w:16px;--c:#d8c4a0"></span>
+        <span style="--h:80%;--w:22px;--c:#8a5d3a"></span>
+        <span style="--h:96%;--w:18px;--c:#52352a"></span>
+        <span style="--h:68%;--w:24px;--c:#b08555"></span>
+        <span style="--h:86%;--w:20px;--c:#44301f"></span>
+      </div>
+
+    </section>
+
+    <section class="form-panel">
+
+      <div class="form-card">
+
+        <div class="form-heading">
+
+          <span class="form-kicker">Welcome aboard</span>
+
+          <h2>Create your account</h2>
+
+          <p>
+            Set up your profile and get your first sprint underway.
+          </p>
+
+        </div>
+
+        <form id="signupForm" novalidate>
+
+          <div class="field-row">
+
+            <div class="field">
+
+              <label for="firstName">First name</label>
+
+              <input
+                id="firstName"
+                name="firstName"
+                type="text"
+                placeholder="Alex"
+                autocomplete="given-name"
+              >
+
+              <small class="error" id="firstNameError"></small>
+
+            </div>
+
+            <div class="field">
+
+              <label for="lastName">Last name</label>
+
+              <input
+                id="lastName"
+                name="lastName"
+                type="text"
+                placeholder="Morgan"
+                autocomplete="family-name"
+              >
+
+              <small class="error" id="lastNameError"></small>
+
+            </div>
+
+          </div>
+
+          <div class="field">
+
+            <label for="username">Username</label>
+
+            <div class="input-wrap">
+
+              <span class="input-icon">@</span>
+
+              <input
+                id="username"
+                name="username"
+                type="text"
+                placeholder="alexmorgan"
+                autocomplete="username"
+              >
+
+            </div>
+
+            <small class="error" id="usernameError"></small>
+
+          </div>
+
+          <div class="field">
+
+            <label for="email">Email address</label>
+
+            <div class="input-wrap">
+
+              <span class="input-icon">@</span>
+
+              <input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                autocomplete="email"
+              >
+
+            </div>
+
+            <small class="error" id="emailError"></small>
+
+          </div>
+
+          <!-- NEW: institution field -->
+          <div class="field">
+
+            <label for="institution">Institution / University / College</label>
+
+            <input
+              id="institution"
+              name="institution"
+              type="text"
+              placeholder="e.g. Delhi Technological University"
+              autocomplete="organization"
+            >
+
+            <small class="error" id="institutionError"></small>
+
+          </div>
+
+          <div class="field">
+
+            <label for="password">Password</label>
+
+            <div class="input-wrap">
+
+              <input
+                id="password"
+                name="password"
+                type="password"
+                placeholder="Create a strong password"
+                autocomplete="new-password"
+              >
+
+              <button
+                type="button"
+                class="password-toggle"
+                data-target="password"
+                aria-label="Show password"
+              >
+                Show
+              </button>
+
+            </div>
+
+            <div class="strength" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+
+            <small class="password-hint">
+              Use 8+ characters with a mix of letters and numbers.
+            </small>
+
+            <small class="error" id="passwordError"></small>
+
+          </div>
+
+          <div class="field">
+
+            <label for="confirmPassword">Confirm password</label>
+
+            <div class="input-wrap">
+
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                placeholder="Repeat your password"
+                autocomplete="new-password"
+              >
+
+              <button
+                type="button"
+                class="password-toggle"
+                data-target="confirmPassword"
+                aria-label="Show password"
+              >
+                Show
+              </button>
+
+            </div>
+
+            <small class="error" id="confirmPasswordError"></small>
+
+          </div>
+
+          <!-- Interest picker (hidden input #interest keeps the same id/value for validation + API) -->
+          <div class="field">
+
+            <label id="interestLabel" for="interestTrigger">Interest</label>
+
+            <div class="interest-picker" id="interestPicker">
+
+              <input type="hidden" id="interest" name="interest" value="">
+
+              <button
+                type="button"
+                class="interest-trigger"
+                id="interestTrigger"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-controls="interestPanel"
+              >
+                <span class="trigger-icon" id="triggerIcon" aria-hidden="true"></span>
+                <span class="trigger-text" id="triggerText">Select your interest</span>
+                <span class="chevron" aria-hidden="true">▾</span>
+              </button>
+
+              <div class="interest-panel" id="interestPanel" role="listbox" aria-labelledby="interestLabel" hidden>
+
+                <!-- Software Development -->
+                <button type="button" class="interest-card" role="option" aria-selected="false"
+                        data-value="software-development" data-label="Software Development">
+                  <span class="card-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <path class="br-l" d="M22 20 8 32l14 12"/>
+                      <path class="br-r" d="M42 20l14 12-14 12"/>
+                      <path class="accent slash" d="M36 14 28 50"/>
+                    </svg>
+                  </span>
+                  <span class="card-title">Software Development</span>
+                  <span class="card-desc">Code, build &amp; ship</span>
+                </button>
+
+                <!-- Data Science -->
+                <button type="button" class="interest-card" role="option" aria-selected="false"
+                        data-value="data-science" data-label="Data Science">
+                  <span class="card-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <ellipse cx="46" cy="14" rx="10" ry="4"/>
+                      <path d="M36 14v10c0 2.2 4.5 4 10 4s10-1.8 10-4V14"/>
+                      <path d="M36 24v10c0 2.2 4.5 4 10 4s10-1.8 10-4V24" class="db-mid"/>
+                      <path class="bar b1" d="M10 54V40"/>
+                      <path class="bar b2" d="M20 54V30"/>
+                      <path class="bar b3 accent" d="M30 54V44"/>
+                      <path class="bar b4" d="M40 54V36"/>
+                      <path class="accent trend" d="M8 30l11-9 9 6 9-12"/>
+                      <path d="M6 58h50"/>
+                    </svg>
+                  </span>
+                  <span class="card-title">Data Science</span>
+                  <span class="card-desc">Big data, models &amp; insight</span>
+                </button>
+
+                <!-- Artificial Intelligence -->
+                <button type="button" class="interest-card" role="option" aria-selected="false"
+                        data-value="artificial-intelligence" data-label="Artificial Intelligence">
+                  <span class="card-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path class="net" d="M14 18 32 12 50 20M14 18 32 32 50 20M14 18 32 52M14 46 32 32 50 44M14 46 32 52 50 44M14 46 32 12M50 20 32 52"/>
+                      <circle class="node n1" cx="14" cy="18" r="5"/>
+                      <circle class="node n2" cx="14" cy="46" r="5"/>
+                      <circle class="node n3 accent" cx="32" cy="12" r="5"/>
+                      <circle class="node n4 accent" cx="32" cy="32" r="5"/>
+                      <circle class="node n5" cx="32" cy="52" r="5"/>
+                      <circle class="node n6" cx="50" cy="20" r="5"/>
+                      <circle class="node n7" cx="50" cy="44" r="5"/>
+                    </svg>
+                  </span>
+                  <span class="card-title">Artificial Intelligence</span>
+                  <span class="card-desc">Neural nets &amp; machine learning</span>
+                </button>
+
+                <!-- Cybersecurity -->
+                <button type="button" class="interest-card" role="option" aria-selected="false"
+                        data-value="cybersecurity" data-label="Cybersecurity">
+                  <span class="card-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <path class="shield" d="M32 6 52 14v16c0 13-8 22-20 28C20 52 12 43 12 30V14z"/>
+                      <circle class="accent" cx="32" cy="27" r="5"/>
+                      <path class="accent" d="M32 32v10"/>
+                      <path class="scan" d="M18 20h28" stroke-width="2"/>
+                    </svg>
+                  </span>
+                  <span class="card-title">Cybersecurity</span>
+                  <span class="card-desc">Ethical hacking &amp; defence</span>
+                </button>
+
+                <!-- Competitive Programming -->
+                <button type="button" class="interest-card" role="option" aria-selected="false"
+                        data-value="competitive-programming" data-label="Competitive Programming">
+                  <span class="card-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <g class="trophy">
+                        <path d="M20 10h24v16c0 8-6 14-12 14s-12-6-12-14z"/>
+                        <path d="M20 14h-8v6c0 6 4 8 8 8M44 14h8v6c0 6-4 8-8 8"/>
+                        <path d="M32 40v10M22 56h20M26 50h12"/>
+                      </g>
+                      <path class="accent star" d="M32 15l2.2 4.6 5 .6-3.7 3.4 1 5-4.5-2.5-4.5 2.5 1-5-3.7-3.4 5-.6z" stroke-width="1.8"/>
+                    </svg>
+                  </span>
+                  <span class="card-title">Competitive Programming</span>
+                  <span class="card-desc">Algorithms against the clock</span>
+                </button>
+
+                <!-- Web Development -->
+                <button type="button" class="interest-card" role="option" aria-selected="false"
+                        data-value="web-development" data-label="Web Development">
+                  <span class="card-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="6" y="10" width="52" height="44" rx="3"/>
+                      <path d="M6 22h52"/>
+                      <circle cx="13" cy="16" r="1.5" fill="currentColor"/>
+                      <circle cx="19" cy="16" r="1.5" fill="currentColor"/>
+                      <path class="accent ln1" d="M14 31h22"/>
+                      <path class="ln2" d="M14 38h30"/>
+                      <path class="ln3" d="M14 45h16"/>
+                    </svg>
+                  </span>
+                  <span class="card-title">Web Development</span>
+                  <span class="card-desc">Interfaces, servers &amp; the web</span>
+                </button>
+
+                <!-- System Design -->
+                <button type="button" class="interest-card" role="option" aria-selected="false"
+                        data-value="system-design" data-label="System Design">
+                  <span class="card-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <rect class="accent" x="22" y="6" width="20" height="14" rx="2"/>
+                      <rect x="4" y="44" width="20" height="14" rx="2"/>
+                      <rect x="40" y="44" width="20" height="14" rx="2"/>
+                      <path class="flow" d="M32 20v12M14 44V32h36v12"/>
+                    </svg>
+                  </span>
+                  <span class="card-title">System Design</span>
+                  <span class="card-desc">Architecture that scales</span>
+                </button>
+
+                <!-- Other -->
+                <button type="button" class="interest-card" role="option" aria-selected="false"
+                        data-value="other" data-label="Other">
+                  <span class="card-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="32" cy="32" r="24"/>
+                      <path d="M32 8v5M32 51v5M8 32h5M51 32h5"/>
+                      <path class="accent needle" d="M32 32 24 40l4-14 14-4z"/>
+                    </svg>
+                  </span>
+                  <span class="card-title">Other</span>
+                  <span class="card-desc">Something else entirely</span>
+                </button>
+
+              </div>
+
+            </div>
+
+            <small class="error" id="interestError"></small>
+
+          </div>
+
+          <label class="terms">
+
+            <input type="checkbox" id="terms">
+
+            <span class="checkmark"></span>
+
+            <span>
+              I agree to the
+              <a href="#">Terms of Service</a>
+              and
+              <a href="#">Privacy Policy</a>.
+            </span>
+
+          </label>
+
+          <small class="error" id="termsError"></small>
+
+          <button class="submit-btn" type="submit">
+
+            <span>Create account</span>
+
+            <span class="arrow">→</span>
+
+          </button>
+
+          <p class="form-note">
+            Your account is the starting point.
+            The real progress happens in the sprint.
+          </p>
+
+        </form>
+
+        <div class="success-state" id="successState">
+
+          <div class="success-icon">✓</div>
+
+          <h2>You're in.</h2>
+
+          <p>
+            Your PeerSprint account is ready.
+            Let's get your first sprint started.
+          </p>
+
+          <button
+            class="back-btn"
+            id="backToForm"
+            type="button"
+          >
+            Create another account
+          </button>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+<script src="signup.js"></script>
+
+</body>
+</html>
+

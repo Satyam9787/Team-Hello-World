@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="The record you requested is not in the archive.">
+    <title>404 — Record Not Found · MINI PROJECT</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <link rel="stylesheet" href="404_Not_Found.css">
+</head>
+
+<body>
+
+<!-- =====================================================
+     VAULT BAR / HEADER
+     ===================================================== -->
+<header class="vault-bar">
+    <div class="wrap vault-inner">
+
+        <a href="login" class="vault-brand" aria-label="Archive home">
+            <span class="vault-seal">AR</span>
+            <span class="vault-brand-text">
+                <strong>MINI PROJECT</strong>
+                <span>PEER TO PEER MOCK SPRINT</span>
+            </span>
+        </a>
+
+        <div class="vault-status">
+            <span class="dot"></span>
+            <span>Archive lookup failed · Record missing</span>
+        </div>
+
+    </div>
+</header>
+
+
+<!-- =====================================================
+     MAIN
+     ===================================================== -->
+<main class="not-found-main">
+
+    <div class="wrap">
+
+        <div class="not-found-grid">
+
+            <!-- ============ LEFT: COPY ============ -->
+            <div class="nf-copy">
+
+                <div class="nf-eyebrow">Error 404 / Missing Record</div>
+
+                <h1 class="nf-code">404</h1>
+
+                <h2 class="nf-title">
+                    This record isn't in the archive.
+                    <em>Try another drawer.</em>
+                </h2>
+
+                <p class="nf-description">
+                    The page you requested has either been moved, renamed,
+                    or never filed in the first place. Our catalogue checked
+                    every shelf and came back empty. <strong>Nothing was lost on your end</strong> —
+                    the record simply isn't here.
+                </p>
+
+                <div class="nf-actions">
+                    <a href="login" class="nf-btn nf-btn-primary">
+                        <i class="fas fa-house"></i>
+                        Return to the reading room
+                    </a>
+                    <a href="login#catalog" class="nf-btn nf-btn-outline">
+                        <i class="fas fa-search"></i>
+                        Browse the catalogue
+                    </a>
+                </div>
+
+                <div class="nf-hint">
+                    <i class="fas fa-circle-info"></i>
+                    <span>Tip: check the URL or use the archive search</span>
+                </div>
+
+            </div>
+
+
+            <!-- ============ RIGHT: LOST CARD VISUAL ============ -->
+            <div class="nf-visual">
+
+                <div class="nf-orbit"></div>
+
+                <div class="index-tab">
+                    Missing / Record 404
+                </div>
+
+                <div class="pinned-note">
+                    no such<br>record in<br>drawer 07.
+                </div>
+
+                <article class="lost-card">
+
+                    <div class="lost-card-head">
+                        <span class="label">Catalogue Entry</span>
+                        <span class="id">REC. ?? / LOST</span>
+                    </div>
+
+                    <div class="lost-card-body">
+
+                        <h3>
+                            Requested<br>Document
+                        </h3>
+
+                        <p>
+                            The item referenced by this URL was not found
+                            in the active collection. It may have been
+                            archived, removed, or never catalogued.
+                        </p>
+
+                        <div class="lost-meta">
+
+                            <div class="lost-meta-item">
+                                <span class="k">Status</span>
+                                <span class="v missing">Not Found</span>
+                            </div>
+
+                            <div class="lost-meta-item">
+                                <span class="k">Shelf</span>
+                                <span class="v missing">Unknown</span>
+                            </div>
+
+                            <div class="lost-meta-item">
+                                <span class="k">Last Seen</span>
+                                <span class="v">—</span>
+                            </div>
+
+                            <div class="lost-meta-item">
+                                <span class="k">Retry</span>
+                                <span class="v">Possible</span>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="void-stamp">
+                        VOID<br>RECORD
+                    </div>
+
+                </article>
+
+            </div>
+
+        </div>
+
+
+        <!-- =====================================================
+             SUGGESTED RECORDS
+             ===================================================== -->
+        <section class="suggested">
+
+            <div class="suggested-head">
+                <div>
+                    <div class="kicker">Try instead</div>
+                    <h2>Records still on the shelf</h2>
+                </div>
+                <p>
+                    A few catalogued entries that might be what you were looking for.
+                </p>
+            </div>
+
+            <div class="suggested-grid">
+
+                <a href="login#catalog" class="suggested-card">
+                    <span class="ref">REC. 01 / DSA</span>
+                    <h3>Graph Traversal Sprint</h3>
+                    <p>45-minute peer sprint covering BFS, DFS and shortest-path warm-ups.</p>
+                    <span class="go">
+                        Open record <i class="fas fa-arrow-right"></i>
+                    </span>
+                </a>
+
+                <a href="login#catalog" class="suggested-card">
+                    <span class="ref">REC. 04 / SYSTEMS</span>
+                    <h3>Cache Design Session</h3>
+                    <p>Peer review sprint on LRU, LFU and consistent hashing trade-offs.</p>
+                    <span class="go">
+                        Open record <i class="fas fa-arrow-right"></i>
+                    </span>
+                </a>
+
+                <a href="login#catalog" class="suggested-card">
+                    <span class="ref">REC. 09 / HUMANITIES</span>
+                    <h3>Argument Mapping</h3>
+                    <p>Silent-corner sprint for structuring claims, evidence and rebuttals.</p>
+                    <span class="go">
+                        Open record <i class="fas fa-arrow-right"></i>
+                    </span>
+                </a>
+
+            </div>
+
+        </section>
+
+    </div>
+
+</main>
+
+
+<!-- =====================================================
+     FOOTER
+     ===================================================== -->
+<footer class="vault-footer">
+    <div class="wrap vault-footer-inner">
+
+        <div class="vault-footer-copy">
+            MINI PROJECT — ARCHIVE STATUS: ONE RECORD NOT FOUND
+        </div>
+
+        <div class="vault-footer-links">
+            <a href="login">Reading room</a>
+            <a href="login#catalog">Catalogue</a>
+            <a href="login#top">Back to top</a>
+        </div>
+
+    </div>
+</footer>
+
+
+<script>
+(function () {
+    "use strict";
+
+    /* =========================================================
+       SMOOTH SCROLL FOR IN-PAGE LINKS
+       ========================================================= */
+    document.querySelectorAll('a[href^="#"]').forEach(function (link) {
+        link.addEventListener('click', function (e) {
+            var targetId = this.getAttribute('href');
+            if (targetId === '#') return;
+            var target = document.querySelector(targetId);
+            if (target) {
+                e.preventDefault();
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+
+    /* =========================================================
+       TITLE FLICKER — the archive keeps looking
+       ========================================================= */
+    var baseTitle = document.title;
+    var frames = [
+        "404 — Record Not Found · MINI PROJECT",
+        "Searching archive… · MINI PROJECT",
+        "404 — Record Not Found · MINI PROJECT",
+        "Record not in catalogue · MINI PROJECT"
+    ];
+    var frameIndex = 0;
+
+    var flickerInterval = setInterval(function () {
+        document.title = frames[frameIndex % frames.length];
+        frameIndex++;
+    }, 4200);
+
+    // Pause flicker when user returns to tab
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) {
+            clearInterval(flickerInterval);
+        } else {
+            frameIndex = 0;
+            flickerInterval = setInterval(function () {
+                document.title = frames[frameIndex % frames.length];
+                frameIndex++;
+            }, 4200);
+        }
+    });
+
+    /* =========================================================
+       SUBTLE PARALLAX ON LOST CARD
+       ========================================================= */
+    var visual = document.querySelector('.nf-visual');
+    var lostCard = document.querySelector('.lost-card');
+
+    if (visual && lostCard && window.matchMedia('(pointer: fine)').matches) {
+        visual.addEventListener('mousemove', function (e) {
+            var rect = visual.getBoundingClientRect();
+            var x = (e.clientX - rect.left) / rect.width - 0.5;
+            var y = (e.clientY - rect.top) / rect.height - 0.5;
+
+            lostCard.style.transform =
+                'rotate(' + (-3 + x * 4) + 'deg) ' +
+                'translate(' + (x * 14) + 'px, ' + (y * 14) + 'px)';
+        });
+
+        visual.addEventListener('mouseleave', function () {
+            lostCard.style.transform = '';
+        });
+    }
+
+    /* =========================================================
+       VOID STAMP EASTER EGG
+       ========================================================= */
+    var stamp = document.querySelector('.void-stamp');
+    if (stamp) {
+        stamp.addEventListener('click', function () {
+            stamp.textContent = 'ALREADY VOID';
+            stamp.style.borderColor = 'var(--walnut)';
+            stamp.style.color = 'var(--walnut)';
+
+            setTimeout(function () {
+                stamp.innerHTML = 'VOID<br>RECORD';
+                stamp.style.borderColor = '';
+                stamp.style.color = '';
+            }, 1600);
+        });
+        stamp.style.cursor = 'pointer';
+    }
+
+})();
+</script>
+
+</body>
+</html>
