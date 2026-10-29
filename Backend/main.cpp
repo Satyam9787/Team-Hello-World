@@ -10,6 +10,8 @@
 #include "AuditLogger.h"
 #include "LogQueue.h"
 #include <functional>
+#include "Redis_batch_worker.h"
+#include "Detection_worker.h"
 
 using namespace std;
 
@@ -40,6 +42,25 @@ int main()
      std::thread worker(&LogQueue::processLogs,&LogQueue,std::ref(auditTable));
 
      std::thread cleanupWorker(&Table::cleanupWorker,&auditTable);
+
+     BatchQueue eventQueue(20);
+
+     RedisBatchWorker redisWorker(
+          getEnvValue("REDIS_URI"),
+          eventQueue
+     );
+
+     DetectionWorker detectionWorker(eventQueue);
+
+     std::thread redisThread(
+          &RedisBatchWorker::run,
+          &redisWorker
+     );
+
+     std::thread detectionThread(
+          &DetectionWorker::run,
+          &detectionWorker
+     );
 
      crow::SimpleApp app;
 
