@@ -1,245 +1,1169 @@
-/* ===== Backend endpoints (change to match your server) =====
- GET  /api/dashboard        -> { profile:{name,email,role,org,joined}, systems:[{id,name,status}] }
-                               status: "in_use" | "idle" | "disconnected" | "damaged"
- GET  /api/logs/process     -> [{ time, system_id, pid, name, cmd, verdict }]   cmd = full command line (optional, falls back to name)
- GET  /api/logs/network     -> [{ time, system_id, proto, dest, port, process, verdict }]   proto, process optional
-                               verdict: "safe" | "unsafe" | "unknown" | "partial"
-                               (network rows with old "status": allowed/blocked also work)
- POST /api/systems/connect  -> body {name}  returns {token, command}   (Add a system)
- GET  /api/summary          -> { total, in_use, idle, disconnected, damaged,
-                                 verdicts:{safe,unsafe,unknown,partial}, processes, connections, last_seen }
-                               (if this call fails, the summary is calculated from the data already on the page)
-*/
-const BASE = '';   // backend address, e.g. 'https://api.yourdomain.com' (leave '' if the backend is on the same site)
-const API = { dash:'/api/dashboard', proc:'/api/logs/process', net:'/api/logs/network', connect:'/api/systems/connect', summary:'/api/summary' };
-const POLL_MS = 5000, VERDICTS = ['safe','unsafe','unknown','partial'];
+/* ---------- API CONFIGURATION ---------- */
+const BASE = '';
+
+const API = {
+  dash: '/api/dashboard',
+  eventsNext: '/api/events/next',
+  eventsAck: '/api/events/ack',
+  connect: '/api/systems/connect',
+  summary: '/api/summary'
+};
+
+const POLL_MS = 5000;
+const VERDICTS = ['safe', 'unsafe', 'unknown', 'partial'];
 const $ = id => document.getElementById(id);
-let systems = [], procRows = [], netRows = [], first = true, demo = false;
-let openId = null, tab = 'proc', vfilter = 'all';
+
+let systems = [];
+let procRows = [];
+let netRows = [];
+let first = true;
+let demo = false;
+let openId = null;
+let tab = 'proc';
+let vfilter = 'all';
+
+const seenEventIds = new Set();
+let refreshInProgress = false;
 const tiles = new Map();
 
-/* ---------- helpers ---------- */
-async function getJSON(url, opts){
-  const r = await fetch(BASE + url, Object.assign({credentials: BASE ? 'include' : 'same-origin'}, opts));
-  if(!r.ok) throw new Error(r.status);
-  return r.json();
-}
-const el = (tag, cls, text) => { const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=String(text); return e; }; // textContent only: logs can contain hostile strings
-const verdictOf = r => VERDICTS.includes(r.verdict) ? r.verdict : r.status==='blocked' ? 'unsafe' : r.status==='allowed' ? 'safe' : 'unknown';
-const cmdOf = r => r.cmd || r.name || '';
-const STATUS = {in_use:'In use', idle:'Idle', disconnected:'Disconnected', damaged:'Damaged'};
-const fmtTime = t => { const d=new Date(t); return isNaN(d) ? String(t) : d.toLocaleTimeString([], {hour12:false}); };
-const byTime = (a,b) => new Date(b.time) - new Date(a.time);
-const logsOf = (rows, id) => rows.filter(r => r.system_id === id).sort(byTime);
+/* ---------- SECURITY ALERTS + REASON DIALOG ---------- */
 
-/* ---------- stats + admin ---------- */
-function renderStats(){
-  const c = s => systems.filter(x=>x.status===s).length;
-  $('nTotal').textContent = systems.length - c('disconnected');
-  $('nUse').textContent = c('in_use'); $('nOff').textContent = c('disconnected'); $('nBad').textContent = c('damaged');
+let alertHost;
+let reasonModal;
+
+function ensureSecurityUI() {
+  if (!alertHost) {
+    alertHost = document.createElement('div');
+    alertHost.id = 'securityAlerts';
+    alertHost.className = 'security-alerts';
+    alertHost.setAttribute('aria-live', 'assertive');
+    alertHost.setAttribute('aria-atomic', 'false');
+    document.body.appendChild(alertHost);
+  }
+
+  if (!reasonModal) {
+    reasonModal = document.createElement('div');
+    reasonModal.id = 'processReasonModal';
+    reasonModal.className = 'modal';
+    reasonModal.hidden = true;
+    reasonModal.setAttribute('role', 'dialog');
+    reasonModal.setAttribute('aria-modal', 'true');
+    reasonModal.setAttribute('aria-labelledby', 'processReasonTitle');
+
+    const win = el('div', 'win mid');
+    const titlebar = el('div', 'titlebar');
+
+    const title = el('span', null, 'Process details');
+    title.id = 'processReasonTitle';
+
+    const close = el('button', 'x', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close');
+    close.setAttribute('data-close', '');
+
+    titlebar.append(title, close);
+
+    const body = el('div', 'win-body process-reason-body');
+
+    const name = el('h3');
+    name.id = 'processReasonName';
+
+    const status = el('p');
+    status.id = 'processReasonStatus';
+    status.className = 'reason-status';
+
+    const reasonLabel = el('strong', null, 'Detection reason');
+
+    const reason = el('p');
+    reason.id = 'processReasonText';
+    reason.className = 'process-reason-text';
+
+    const meta = el('p');
+    meta.id = 'processReasonMeta';
+    meta.className = 'hint';
+
+    body.append(name, status, reasonLabel, reason, meta);
+    win.append(titlebar, body);
+    reasonModal.appendChild(win);
+    document.body.appendChild(reasonModal);
+
+    reasonModal.addEventListener('click', event => {
+      if (
+        event.target === reasonModal ||
+        event.target.hasAttribute('data-close')
+      ) {
+        closeModal(reasonModal);
+      }
+    });
+  }
 }
-function renderAdmin(p){
-  p = p || {};
-  $('aName').textContent = p.name || 'Admin';
-  $('aRole').textContent = p.role || '';
-  $('avatar').textContent = (p.name || 'A').trim().charAt(0).toUpperCase();
-  const dl = $('aData'); dl.textContent = '';
-  [['Email',p.email],['Organization',p.org],['Joined',p.joined]].forEach(([k,v]) => dl.append(el('dt',null,k), el('dd',null,v||'—')));
+
+function showUnsafeAlert(row) {
+  ensureSecurityUI();
+
+  const alert = el('section', 'security-alert');
+  alert.setAttribute('role', 'alert');
+
+  const heading = el(
+    'strong',
+    null,
+    '⚠ UNSAFE PROCESS DETECTED'
+  );
+
+  const description = el(
+    'p',
+    null,
+    `${row.name || 'Unknown process'} (PID ${row.pid ?? '—'})`
+  );
+
+  const reason = el(
+    'p',
+    null,
+    row.reason || 'No detection reason provided by the backend.'
+  );
+
+  const details = el('button', 'security-alert-details', 'View details');
+  details.type = 'button';
+  details.onclick = () => showProcessReason(row);
+
+  const dismiss = el('button', 'security-alert-close', 'Dismiss');
+  dismiss.type = 'button';
+  dismiss.onclick = () => alert.remove();
+
+  alert.append(heading, description, reason, details, dismiss);
+  alertHost.prepend(alert);
+
+  // Remove the notification after 10 seconds.
+  window.setTimeout(() => alert.remove(), 10000);
 }
-function verdictCounts(){
-  const ids = new Set(systems.map(x=>x.id)), n = {safe:0,unsafe:0,unknown:0,partial:0};
-  procRows.concat(netRows).forEach(r => { if(ids.has(r.system_id)) n[verdictOf(r)]++; });
-  return n;
+
+function showProcessReason(row) {
+  ensureSecurityUI();
+
+  const status = verdictOf(row);
+
+  $('processReasonName').textContent =
+    row.name || 'Unknown process';
+
+  $('processReasonStatus').textContent =
+    `Status: ${status.toUpperCase()}`;
+
+  $('processReasonStatus').className =
+    `reason-status ${status}`;
+
+  $('processReasonText').textContent =
+    row.reason || 'No reason provided by the backend.';
+
+  $('processReasonMeta').textContent =
+    `PID: ${row.pid ?? '—'} | ` +
+    `PPID: ${row.ppid ?? '—'} | ` +
+    `Event: ${row.event || '—'} | ` +
+    `Time: ${fmtTime(row.time)}`;
+
+  openModal(reasonModal);
 }
-function fillTally(box, n){
-  const total = Math.max(1, VERDICTS.reduce((a,v)=>a+(n[v]||0), 0));
-  if(!box.children.length) VERDICTS.forEach(v => {
-    const row = el('div','t '+v); row.append(el('span',null,v), el('div','tr'), el('em',null,'0'));
-    row.children[1].appendChild(el('i')); box.appendChild(row);
+
+/* ---------- HELPERS ---------- */
+
+async function getJSON(url, opts = {}) {
+  const response = await fetch(BASE + url, {
+    credentials: BASE ? 'include' : 'same-origin',
+    ...opts
   });
-  VERDICTS.forEach((v,i) => { const row=box.children[i]; row.querySelector('i').style.width=((n[v]||0)/total*100)+'%'; row.querySelector('em').textContent=n[v]||0; });
-}
-function renderTally(){ fillTally($('tally'), verdictCounts()); }
 
-/* ---------- summary window ---------- */
-function computeSummary(){
-  const c = k => systems.filter(x=>x.status===k).length, ids = new Set(systems.map(x=>x.id));
-  const p = procRows.filter(r=>ids.has(r.system_id)), n = netRows.filter(r=>ids.has(r.system_id));
-  const times = p.concat(n).map(r=>new Date(r.time).getTime()).filter(t=>!isNaN(t));
-  return {total:systems.length, in_use:c('in_use'), idle:c('idle'), disconnected:c('disconnected'), damaged:c('damaged'),
-          verdicts:verdictCounts(), processes:p.length, connections:n.length, last_seen: times.length ? Math.max.apply(null,times) : null};
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${url}`);
+  }
+
+  return response.json();
 }
-function renderSummary(d){
-  const num = v => Number(v) || 0, tot = num(d.total), off = num(d.disconnected);
-  const figs = $('sumFigs'); figs.textContent = '';
-  [['Total systems',tot,'c'],['Connected',tot-off,'c'],['In use',num(d.in_use),'g'],['Idle',num(d.idle),'i'],['Disconnected',off,'m'],['Damaged',num(d.damaged),'r']]
-    .forEach(([k,v,c]) => { const f=el('div','fig '+c); f.append(el('b',null,v), el('span',null,k)); figs.appendChild(f); });
-  fillTally($('sumTally'), d.verdicts || {});
-  const meta = $('sumMeta'); meta.textContent = '';
-  [['Process records',num(d.processes)],['Network records',num(d.connections)],['Last activity', d.last_seen ? new Date(d.last_seen).toLocaleString() : '—']]
-    .forEach(([k,v]) => meta.append(el('dt',null,k), el('dd',null,v)));
+
+const el = (tag, cls, text) => {
+  const element = document.createElement(tag);
+
+  if (cls) element.className = cls;
+  if (text != null) element.textContent = String(text);
+
+  return element;
+};
+
+const verdictOf = row => {
+  const verdict = String(row.verdict || '').toLowerCase();
+
+  if (VERDICTS.includes(verdict)) {
+    return verdict;
+  }
+
+  if (row.status === 'blocked') return 'unsafe';
+  if (row.status === 'allowed') return 'safe';
+
+  return 'unknown';
+};
+
+const cmdOf = row => row.cmd || row.name || '';
+
+const STATUS = {
+  in_use: 'In use',
+  idle: 'Idle',
+  disconnected: 'Disconnected',
+  damaged: 'Damaged'
+};
+
+const fmtTime = value => {
+  const date = new Date(value);
+
+  return isNaN(date)
+    ? String(value)
+    : date.toLocaleTimeString([], { hour12: false });
+};
+
+const byTime = (a, b) =>
+  new Date(b.time) - new Date(a.time);
+
+const logsOf = (rows, id) =>
+  rows.filter(row => row.system_id === id).sort(byTime);
+
+/* ---------- DASHBOARD STATS ---------- */
+
+function renderStats() {
+  const count = status =>
+    systems.filter(system => system.status === status).length;
+
+  $('nTotal').textContent =
+    systems.length - count('disconnected');
+
+  $('nUse').textContent = count('in_use');
+  $('nOff').textContent = count('disconnected');
+  $('nBad').textContent = count('damaged');
 }
-async function openSummary(){
-  renderSummary(computeSummary()); openModal($('sumModal'));        // instant, from data already loaded
-  try{ renderSummary(await getJSON(API.summary)); }catch(e){ /* keep the local summary */ }
+
+function renderAdmin(profile = {}) {
+  $('aName').textContent = profile.name || 'Admin';
+  $('aRole').textContent = profile.role || '';
+
+  $('avatar').textContent =
+    (profile.name || 'A').trim().charAt(0).toUpperCase();
+
+  const data = $('aData');
+  data.textContent = '';
+
+  [
+    ['Email', profile.email],
+    ['Organization', profile.org],
+    ['Joined', profile.joined]
+  ].forEach(([key, value]) => {
+    data.append(
+      el('dt', null, key),
+      el('dd', null, value || '—')
+    );
+  });
 }
+
+function verdictCounts() {
+  const ids = new Set(systems.map(system => system.id));
+
+  const counts = {
+    safe: 0,
+    unsafe: 0,
+    unknown: 0,
+    partial: 0
+  };
+
+  procRows.concat(netRows).forEach(row => {
+    if (ids.has(row.system_id)) {
+      counts[verdictOf(row)]++;
+    }
+  });
+
+  return counts;
+}
+
+function fillTally(box, counts) {
+  const total = Math.max(
+    1,
+    VERDICTS.reduce(
+      (sum, verdict) => sum + (counts[verdict] || 0),
+      0
+    )
+  );
+
+  if (!box.children.length) {
+    VERDICTS.forEach(verdict => {
+      const row = el('div', 't ' + verdict);
+
+      row.append(
+        el('span', null, verdict),
+        el('div', 'tr'),
+        el('em', null, '0')
+      );
+
+      row.children[1].appendChild(el('i'));
+      box.appendChild(row);
+    });
+  }
+
+  VERDICTS.forEach((verdict, index) => {
+    const row = box.children[index];
+    const count = counts[verdict] || 0;
+
+    row.querySelector('i').style.width =
+      (count / total * 100) + '%';
+
+    row.querySelector('em').textContent = count;
+  });
+}
+
+function renderTally() {
+  fillTally($('tally'), verdictCounts());
+}
+
+/* ---------- SUMMARY WINDOW ---------- */
+
+function computeSummary() {
+  const count = status =>
+    systems.filter(system => system.status === status).length;
+
+  const ids = new Set(systems.map(system => system.id));
+
+  const processes = procRows.filter(row =>
+    ids.has(row.system_id)
+  );
+
+  const connections = netRows.filter(row =>
+    ids.has(row.system_id)
+  );
+
+  const times = processes.concat(connections)
+    .map(row => new Date(row.time).getTime())
+    .filter(time => !isNaN(time));
+
+  return {
+    total: systems.length,
+    in_use: count('in_use'),
+    idle: count('idle'),
+    disconnected: count('disconnected'),
+    damaged: count('damaged'),
+    verdicts: verdictCounts(),
+    processes: processes.length,
+    connections: connections.length,
+    last_seen: times.length ? Math.max(...times) : null
+  };
+}
+
+function renderSummary(data) {
+  const num = value => Number(value) || 0;
+  const total = num(data.total);
+  const disconnected = num(data.disconnected);
+
+  const figures = $('sumFigs');
+  figures.textContent = '';
+
+  [
+    ['Total systems', total, 'c'],
+    ['Connected', total - disconnected, 'c'],
+    ['In use', num(data.in_use), 'g'],
+    ['Idle', num(data.idle), 'i'],
+    ['Disconnected', disconnected, 'm'],
+    ['Damaged', num(data.damaged), 'r']
+  ].forEach(([label, value, cls]) => {
+    const figure = el('div', 'fig ' + cls);
+
+    figure.append(
+      el('b', null, value),
+      el('span', null, label)
+    );
+
+    figures.appendChild(figure);
+  });
+
+  fillTally($('sumTally'), data.verdicts || {});
+
+  const meta = $('sumMeta');
+  meta.textContent = '';
+
+  [
+    ['Process records', num(data.processes)],
+    ['Network records', num(data.connections)],
+    [
+      'Last activity',
+      data.last_seen
+        ? new Date(data.last_seen).toLocaleString()
+        : '—'
+    ]
+  ].forEach(([key, value]) => {
+    meta.append(
+      el('dt', null, key),
+      el('dd', null, value)
+    );
+  });
+}
+
+async function openSummary() {
+  renderSummary(computeSummary());
+  openModal($('sumModal'));
+
+  try {
+    renderSummary(await getJSON(API.summary));
+  } catch (_) {
+    // Keep the locally calculated summary.
+  }
+}
+
 $('openSummary').onclick = openSummary;
-$('sumAdd').onclick = () => { closeModal($('sumModal')); resetConnect(); openModal($('connectModal')); };
 
-/* ---------- monitor tiles (one per connected system, no list) ---------- */
-function buildTile(s){
-  const b = el('button','mon'); b.type='button';
-  const tilt = el('div','tilt'), bez = el('div','bezel'), scr = el('div','screen');
-  const bar = el('div','case-bar'); bar.append(el('i','led'), el('span','slot'), el('span','slot'));
-  bez.append(scr, bar); tilt.append(bez, el('div','neck'), el('div','foot'));
-  b.append(tilt, el('span','mname'));
-  b.addEventListener('click', () => openSystem(b.dataset.id));
-  b.addEventListener('mousemove', e => {
-    const r=b.getBoundingClientRect();
-    tilt.style.setProperty('--ry', ((e.clientX-r.left)/r.width-.5)*14+'deg');
-    tilt.style.setProperty('--rx', (.5-(e.clientY-r.top)/r.height)*10+'deg');
+$('sumAdd').onclick = () => {
+  closeModal($('sumModal'));
+  resetConnect();
+  openModal($('connectModal'));
+};
+
+/* ---------- COMPUTER TILES ---------- */
+
+function buildTile(system) {
+  const button = el('button', 'mon');
+  button.type = 'button';
+
+  const tilt = el('div', 'tilt');
+  const bezel = el('div', 'bezel');
+  const screen = el('div', 'screen');
+
+  const bar = el('div', 'case-bar');
+  bar.append(
+    el('i', 'led'),
+    el('span', 'slot'),
+    el('span', 'slot')
+  );
+
+  bezel.append(screen, bar);
+  tilt.append(bezel, el('div', 'neck'), el('div', 'foot'));
+
+  button.append(tilt, el('span', 'mname'));
+
+  button.addEventListener('click', () => {
+    openSystem(button.dataset.id);
   });
-  b.addEventListener('mouseleave', () => { tilt.style.setProperty('--rx','0deg'); tilt.style.setProperty('--ry','0deg'); });
-  return b;
+
+  button.addEventListener('mousemove', event => {
+    const rect = button.getBoundingClientRect();
+
+    tilt.style.setProperty(
+      '--ry',
+      ((event.clientX - rect.left) / rect.width - 0.5) * 14 + 'deg'
+    );
+
+    tilt.style.setProperty(
+      '--rx',
+      (0.5 - (event.clientY - rect.top) / rect.height) * 10 + 'deg'
+    );
+  });
+
+  button.addEventListener('mouseleave', () => {
+    tilt.style.setProperty('--rx', '0deg');
+    tilt.style.setProperty('--ry', '0deg');
+  });
+
+  return button;
 }
-function renderFloor(){
-  const floor = $('floor'), keep = new Set(systems.map(s=>s.id));
-  tiles.forEach((t,id) => { if(!keep.has(id)){ t.remove(); tiles.delete(id); } });
-  systems.forEach(s => {
-    let t = tiles.get(s.id);
-    if(!t){ t = buildTile(s); tiles.set(s.id, t); }
-    t.dataset.id = s.id;
-    t.className = 'mon ' + (s.status==='in_use' ? '' : s.status==='idle' ? 'idle' : s.status);
-    t.setAttribute('aria-label', 'Open ' + s.name + ' logs');
-    t.querySelector('.mname').textContent = s.name;
-    floor.appendChild(t);                         // keeps order stable
-    drawScreen(t.querySelector('.screen'), s);
+
+function renderFloor() {
+  const floor = $('floor');
+  const keep = new Set(systems.map(system => system.id));
+
+  tiles.forEach((tile, id) => {
+    if (!keep.has(id)) {
+      tile.remove();
+      tiles.delete(id);
+    }
   });
+
+  systems.forEach(system => {
+    let tile = tiles.get(system.id);
+
+    if (!tile) {
+      tile = buildTile(system);
+      tiles.set(system.id, tile);
+    }
+
+    tile.dataset.id = system.id;
+
+    tile.className =
+      'mon ' +
+      (system.status === 'in_use'
+        ? ''
+        : system.status === 'idle'
+          ? 'idle'
+          : system.status);
+
+    tile.setAttribute(
+      'aria-label',
+      'Open ' + system.name + ' logs'
+    );
+
+    tile.querySelector('.mname').textContent = system.name;
+
+    floor.appendChild(tile);
+
+    drawScreen(tile.querySelector('.screen'), system);
+  });
+
   floor.appendChild(addTile());
 }
+
 let addEl;
-function addTile(){
-  if(addEl) return addEl;
-  addEl = el('button','mon add'); addEl.type='button';
-  const tilt=el('div','tilt'), bez=el('div','bezel'), scr=el('div','screen');
-  scr.appendChild(el('span','plus','+'));
-  const bar = el('div','case-bar'); bar.append(el('i','led'), el('span','slot'));
-  bez.append(scr, bar); tilt.append(bez, el('div','neck'), el('div','foot'));
-  addEl.append(tilt, el('span','mname','Connect a system'));
-  addEl.onclick = () => { resetConnect(); openModal($('connectModal')); };
+
+function addTile() {
+  if (addEl) return addEl;
+
+  addEl = el('button', 'mon add');
+  addEl.type = 'button';
+
+  const tilt = el('div', 'tilt');
+  const bezel = el('div', 'bezel');
+  const screen = el('div', 'screen');
+
+  screen.appendChild(el('span', 'plus', '+'));
+
+  const bar = el('div', 'case-bar');
+  bar.append(el('i', 'led'), el('span', 'slot'));
+
+  bezel.append(screen, bar);
+  tilt.append(bezel, el('div', 'neck'), el('div', 'foot'));
+
+  addEl.append(
+    tilt,
+    el('span', 'mname', 'Connect a system')
+  );
+
+  addEl.onclick = () => {
+    resetConnect();
+    openModal($('connectModal'));
+  };
+
   return addEl;
 }
-function drawScreen(scr, s){
-  const rows = logsOf(procRows, s.id).slice(0,8);
-  const sig = s.status + '|' + rows.map(r=>r.pid+cmdOf(r)+verdictOf(r)).join(',');
-  if(scr.dataset.sig === sig) return;
-  const prev = scr.dataset.top; scr.dataset.sig = sig; scr.textContent = '';
-  if(s.status==='disconnected' || s.status==='damaged'){
-    scr.appendChild(el('div','off-msg', s.status==='damaged' ? 'SYSTEM FAULT' : 'NO SIGNAL')); }
-  rows.forEach((r,i) => {
-    const ln = el('div','ln '+verdictOf(r)); ln.append(el('i'), el('span',null,cmdOf(r)));
-    if(!first && i===0 && prev !== r.pid+cmdOf(r)) ln.classList.add('fresh');
-    scr.appendChild(ln);
+
+function drawScreen(screen, system) {
+  const rows = logsOf(procRows, system.id).slice(0, 8);
+
+  const signature =
+    system.status + '|' +
+    rows.map(row =>
+      row.pid + cmdOf(row) + verdictOf(row)
+    ).join(',');
+
+  if (screen.dataset.sig === signature) return;
+
+  const previousTop = screen.dataset.top;
+  screen.dataset.sig = signature;
+  screen.textContent = '';
+
+  if (
+    system.status === 'disconnected' ||
+    system.status === 'damaged'
+  ) {
+    screen.appendChild(
+      el(
+        'div',
+        'off-msg',
+        system.status === 'damaged'
+          ? 'SYSTEM FAULT'
+          : 'NO SIGNAL'
+      )
+    );
+  }
+
+  rows.forEach((row, index) => {
+    const line = el('div', 'ln ' + verdictOf(row));
+
+    line.append(
+      el('i'),
+      el('span', null, cmdOf(row))
+    );
+
+    if (
+      !first &&
+      index === 0 &&
+      previousTop !== row.pid + cmdOf(row)
+    ) {
+      line.classList.add('fresh');
+    }
+
+    screen.appendChild(line);
   });
-  if(!rows.length && s.status!=='disconnected' && s.status!=='damaged') scr.appendChild(el('div','off-msg','AWAITING DATA'));
-  scr.dataset.top = rows[0] ? rows[0].pid+cmdOf(rows[0]) : '';
+
+  if (
+    !rows.length &&
+    system.status !== 'disconnected' &&
+    system.status !== 'damaged'
+  ) {
+    screen.appendChild(
+      el('div', 'off-msg', 'AWAITING DATA')
+    );
+  }
+
+  screen.dataset.top = rows[0]
+    ? rows[0].pid + cmdOf(rows[0])
+    : '';
 }
 
-/* ---------- system window ---------- */
-function openSystem(id){
-  openId = id; tab = 'proc'; vfilter = 'all';
-  const s = systems.find(x=>x.id===id); $('sTitle').textContent = (s ? s.name : id) + (s ? ' — ' + (STATUS[s.status]||s.status) : '');
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab===tab));
-  drawDetail(); openModal($('sysModal'));
-}
-function drawDetail(){
-  if(!openId) return;
-  const rows = logsOf(tab==='proc' ? procRows : netRows, openId);
-  const cnt = {all:rows.length, safe:0, unsafe:0, unknown:0, partial:0};
-  rows.forEach(r => cnt[verdictOf(r)]++);
-  const chips = $('chips'); chips.textContent = '';
-  ['all'].concat(VERDICTS).forEach(v => {
-    const b = el('button','chip '+(v==='all'?'':v)+(vfilter===v?' on':''), v+' · '+cnt[v]); b.type='button';
-    b.onclick = () => { vfilter = v; drawDetail(); }; chips.appendChild(b);
+/* ---------- SYSTEM DETAILS WINDOW ---------- */
+
+function openSystem(id) {
+  openId = id;
+  tab = 'proc';
+  vfilter = 'all';
+
+  const system = systems.find(item => item.id === id);
+
+  $('sTitle').textContent =
+    (system ? system.name : id) +
+    (
+      system
+        ? ' — ' + (STATUS[system.status] || system.status)
+        : ''
+    );
+
+  document.querySelectorAll('.tab').forEach(button => {
+    button.classList.toggle(
+      'on',
+      button.dataset.tab === tab
+    );
   });
-  const head = $('sHead'); head.textContent = '';
-  const hr = el('tr'); (tab==='proc' ? ['Time','PID','Process','Command','Verdict'] : ['Time','Proto','Destination','Port','Process','Verdict']).forEach(h => hr.appendChild(el('th',null,h)));
-  head.appendChild(hr);
-  const body = $('sBody'); body.textContent = '';
-  const shown = rows.filter(r => vfilter==='all' || verdictOf(r)===vfilter).slice(0,300);
-  shown.forEach(r => {
-    const tr = el('tr'), v = verdictOf(r);
-    tr.appendChild(el('td','nw',fmtTime(r.time)));
-    if(tab==='proc'){
-      tr.appendChild(el('td','nw',r.pid)); tr.appendChild(el('td','nw',r.name));
-      tr.appendChild(el('td','cmd',r.cmd || r.name));
+
+  drawDetail();
+  openModal($('sysModal'));
+}
+
+function drawDetail() {
+  if (!openId) return;
+
+  const rows = logsOf(
+    tab === 'proc' ? procRows : netRows,
+    openId
+  );
+
+  const counts = {
+    all: rows.length,
+    safe: 0,
+    unsafe: 0,
+    unknown: 0,
+    partial: 0
+  };
+
+  rows.forEach(row => counts[verdictOf(row)]++);
+
+  const chips = $('chips');
+  chips.textContent = '';
+
+  ['all', ...VERDICTS].forEach(verdict => {
+    const button = el(
+      'button',
+      'chip ' +
+        (verdict === 'all' ? '' : verdict) +
+        (vfilter === verdict ? ' on' : ''),
+      verdict + ' · ' + counts[verdict]
+    );
+
+    button.type = 'button';
+
+    button.onclick = () => {
+      vfilter = verdict;
+      drawDetail();
+    };
+
+    chips.appendChild(button);
+  });
+
+  const head = $('sHead');
+  head.textContent = '';
+
+  const header = el('tr');
+
+  const columns = tab === 'proc'
+    ? ['Time', 'PID', 'Process', 'Command', 'Verdict']
+    : [
+        'Time',
+        'Proto',
+        'Destination',
+        'Port',
+        'Process',
+        'Verdict'
+      ];
+
+  columns.forEach(column => {
+    header.appendChild(el('th', null, column));
+  });
+
+  head.appendChild(header);
+
+  const body = $('sBody');
+  body.textContent = '';
+
+  const shown = rows
+    .filter(row =>
+      vfilter === 'all' ||
+      verdictOf(row) === vfilter
+    )
+    .slice(0, 300);
+
+  shown.forEach(row => {
+    const tr = el('tr');
+    const verdict = verdictOf(row);
+
+    tr.appendChild(
+      el('td', 'nw', fmtTime(row.time))
+    );
+
+    if (tab === 'proc') {
+      tr.appendChild(el('td', 'nw', row.pid));
+
+      // Clicking the process name opens its reason.
+      const processCell = el('td', 'nw');
+
+      const processLink = el(
+        'button',
+        'process-name-link',
+        row.name || 'unknown'
+      );
+
+      processLink.type = 'button';
+      processLink.title = 'View process status and reason';
+      processLink.onclick = () => showProcessReason(row);
+
+      processCell.appendChild(processLink);
+      tr.appendChild(processCell);
+
+      tr.appendChild(
+        el('td', 'cmd', row.cmd || row.name)
+      );
     } else {
-      tr.appendChild(el('td','nw',r.proto || '—')); tr.appendChild(el('td','nw',r.dest)); tr.appendChild(el('td','nw',r.port));
-      tr.appendChild(el('td','nw',r.process || '—'));
+      tr.appendChild(
+        el('td', 'nw', row.proto || '—')
+      );
+
+      tr.appendChild(el('td', 'nw', row.dest));
+      tr.appendChild(el('td', 'nw', row.port));
+
+      tr.appendChild(
+        el('td', 'nw', row.process || '—')
+      );
     }
-    const td = el('td'); td.appendChild(el('span','tag '+v, v)); tr.appendChild(td);
+
+    const td = el('td');
+
+    td.appendChild(
+      el('span', 'tag ' + verdict, verdict)
+    );
+
+    tr.appendChild(td);
     body.appendChild(tr);
   });
+
   $('sEmpty').hidden = shown.length > 0;
 }
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
-  tab = t.dataset.tab; vfilter = 'all';
-  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x===t)); drawDetail();
+
+document.querySelectorAll('.tab').forEach(button => {
+  button.onclick = () => {
+    tab = button.dataset.tab;
+    vfilter = 'all';
+
+    document.querySelectorAll('.tab').forEach(item => {
+      item.classList.toggle('on', item === button);
+    });
+
+    drawDetail();
+  };
 });
 
-/* ---------- modals ---------- */
+/* ---------- MODALS ---------- */
+
 let lastFocus;
-function openModal(m){ lastFocus=document.activeElement; m.hidden=false; const f=m.querySelector('input,.x'); f&&f.focus(); }
-function closeModal(m){ m.hidden=true; if(m.id==='sysModal') openId=null; lastFocus&&lastFocus.focus&&lastFocus.focus(); }
-document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if(e.target===m || e.target.hasAttribute('data-close')) closeModal(m); }));
-document.addEventListener('keydown', e => { if(e.key==='Escape') document.querySelectorAll('.modal:not([hidden])').forEach(closeModal); });
 
-/* ---------- connect more systems ---------- */
-function resetConnect(){ $('sysName').value=''; $('cmdBox').hidden=true; $('cErr').hidden=true; }
-$('makeCmd').onclick = async () => {
-  const name = $('sysName').value.trim(), err = $('cErr'); err.hidden = true;
-  if(!name){ err.textContent='Enter a name for the system.'; err.hidden=false; return; }
-  let res;
-  try{ res = await getJSON(API.connect, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})}); }
-  catch(e){
-    if(!demo){ err.textContent='Could not reach the server. Try again.'; err.hidden=false; return; }
-    res = {command:'curl -sSL https://your-server/agent.sh | sudo bash -s -- --token DEMO-TOKEN-1234'};
+function openModal(modal) {
+  lastFocus = document.activeElement;
+  modal.hidden = false;
+
+  const focusTarget = modal.querySelector('input,.x');
+
+  if (focusTarget) {
+    focusTarget.focus();
   }
-  $('cmdText').textContent = res.command; $('cmdBox').hidden = false; refresh();
-};
-$('copyCmd').onclick = async e => {
-  try{ await navigator.clipboard.writeText($('cmdText').textContent); e.target.textContent='Copied'; setTimeout(()=>e.target.textContent='Copy command',1500); }catch(_){}
-};
-
-/* ---------- polling ---------- */
-function setLive(ok){ const l=$('live'); l.textContent = demo ? 'Demo data' : ok ? 'Live' : 'Reconnecting'; l.classList.toggle('down', demo || !ok); }
-async function refresh(){
-  try{
-    const [d,p,n] = await Promise.all([getJSON(API.dash), getJSON(API.proc), getJSON(API.net)]);
-    systems = d.systems || []; procRows = p; netRows = n; renderAdmin(d.profile); demo = false; setLive(true);
-  }catch(e){ if(first) loadDemo(); else { setLive(false); return; } }
-  renderStats(); renderFloor(); renderTally(); drawDetail(); first = false;
 }
 
-/* ---------- demo data (only when backend is unreachable) ---------- */
-function loadDemo(){
-  demo = true; setLive(true);
-  renderAdmin({name:'Admin User', role:'Security administrator', email:'admin@example.com', org:'Your organization', joined:'2026-10-01'});
-  systems = [{id:'s1',name:'web-01',status:'in_use'}];
-  const P = [['nginx','/usr/sbin/nginx -g daemon off; -c /etc/nginx/nginx.conf','safe'],
-             ['postgres','/usr/lib/postgresql/16/bin/postgres -D /var/lib/postgresql/16/main','safe'],
-             ['.x9f$$a','/tmp/.x9f$$a --connect 185.220.101.4:4444 --hide','unsafe'],
-             ['unknown_bin','/opt/unknown_bin -s -k 0x41','unknown'],
-             ['python3','/usr/bin/python3 /home/dev/export.py --upload (unsigned script)','partial'],
-             ['systemd','/usr/lib/systemd/systemd --user','safe'],
-             ['kworker2','/dev/shm/kworker2 -o pool.example:3333 -u x','unsafe']];
-  const N = [['tcp','10.0.0.12',443,'nginx','safe'],['tcp','185.220.101.4',4444,'.x9f$$a','unsafe'],['tcp','10.0.0.30',5432,'postgres','safe'],
-             ['udp','203.0.113.9',8080,'python3','partial'],['tcp','198.51.100.7',9001,'unknown_bin','unknown']];
-  const now = Date.now(); procRows = []; netRows = [];
-  systems.forEach((s,i) => {
-    P.forEach((p,k) => procRows.push({time:now-(k*7+i)*1000, system_id:s.id, pid:1000+i*100+k, name:p[0], cmd:p[1], verdict:p[2]}));
-    N.forEach((n,k) => netRows.push({time:now-(k*9+i)*1000, system_id:s.id, proto:n[0], dest:n[1], port:n[2], process:n[3], verdict:n[4]}));
+function closeModal(modal) {
+  modal.hidden = true;
+
+  if (modal.id === 'sysModal') {
+    openId = null;
+  }
+
+  if (lastFocus && lastFocus.focus) {
+    lastFocus.focus();
+  }
+}
+
+document.querySelectorAll('.modal').forEach(modal => {
+  modal.addEventListener('click', event => {
+    if (
+      event.target === modal ||
+      event.target.hasAttribute('data-close')
+    ) {
+      closeModal(modal);
+    }
   });
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    document
+      .querySelectorAll('.modal:not([hidden])')
+      .forEach(closeModal);
+  }
+});
+
+/* ---------- CONNECT SYSTEM ---------- */
+
+function resetConnect() {
+  $('sysName').value = '';
+  $('cmdBox').hidden = true;
+  $('cErr').hidden = true;
 }
 
-refresh(); setInterval(refresh, POLL_MS);
+$('makeCmd').onclick = async () => {
+  const name = $('sysName').value.trim();
+  const error = $('cErr');
+
+  error.hidden = true;
+
+  if (!name) {
+    error.textContent = 'Enter a name for the system.';
+    error.hidden = false;
+    return;
+  }
+
+  let result;
+
+  try {
+    result = await getJSON(API.connect, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name })
+    });
+  } catch (_) {
+    if (!demo) {
+      error.textContent =
+        'Could not reach the server. Try again.';
+      error.hidden = false;
+      return;
+    }
+
+    result = {
+      command:
+        'curl -sSL https://your-server/agent.sh | sudo bash -s -- --token DEMO-TOKEN-1234'
+    };
+  }
+
+  $('cmdText').textContent = result.command;
+  $('cmdBox').hidden = false;
+
+  refresh();
+};
+
+$('copyCmd').onclick = async event => {
+  try {
+    await navigator.clipboard.writeText(
+      $('cmdText').textContent
+    );
+
+    event.target.textContent = 'Copied';
+
+    setTimeout(() => {
+      event.target.textContent = 'Copy command';
+    }, 1500);
+  } catch (_) {
+    // Clipboard access may be unavailable.
+  }
+};
+
+/* ---------- LIVE STATUS ---------- */
+
+function setLive(ok) {
+  const live = $('live');
+
+  live.textContent = demo
+    ? 'Demo system / API mode'
+    : ok
+      ? 'Live'
+      : 'Reconnecting';
+
+  live.classList.toggle('down', demo || !ok);
+}
+
+/* ---------- PROCESS BATCH API ---------- */
+
+async function fetchProcessBatch() {
+  const batch = await getJSON(API.eventsNext);
+
+  if (
+    !batch ||
+    !batch.success ||
+    !Array.isArray(batch.events) ||
+    batch.events.length === 0
+  ) {
+    return null;
+  }
+
+  if (!systems.length) {
+    systems = [{
+      id: 'ebpf-local',
+      name: 'eBPF-Shield Host',
+      status: 'in_use'
+    }];
+  }
+
+  const targetSystemId = systems[0].id;
+
+  for (const item of batch.events) {
+    if (item.id == null) {
+      console.warn(
+        '[Prahari] Event is missing its ID:',
+        item
+      );
+      continue;
+    }
+
+    const eventId = String(item.id);
+
+    // Avoid processing or alerting for the same event twice.
+    if (seenEventIds.has(eventId)) {
+      continue;
+    }
+
+    let payload;
+
+    try {
+      payload = typeof item.payload === 'string'
+        ? JSON.parse(item.payload)
+        : item.payload;
+    } catch (_) {
+      payload = {
+        event: 'INVALID_PROCESS_EVENT',
+        comm: 'Invalid event payload',
+        status: 'partial',
+        reason: 'The event payload could not be parsed.'
+      };
+    }
+
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      Array.isArray(payload)
+    ) {
+      payload = {
+        event: 'INVALID_PROCESS_EVENT',
+        comm: 'Invalid event payload',
+        status: 'partial',
+        reason: 'The event payload is missing or invalid.'
+      };
+    }
+
+    const epoch = Number(payload.timestamp_unix);
+
+    const time =
+      Number.isFinite(epoch) && epoch > 0
+        ? new Date(epoch * 1000).toISOString()
+        : new Date().toISOString();
+
+    const processName = String(
+      payload.comm || payload.name || 'unknown'
+    );
+
+    const command = String(
+      payload.cmd || processName
+    );
+
+    // Use the status produced by the backend classifier.
+    const validStatuses = [
+      'safe',
+      'unsafe',
+      'partial',
+      'unknown'
+    ];
+
+    const incomingStatus = String(
+      payload.status || payload.verdict || ''
+    ).toLowerCase();
+
+    const status = validStatuses.includes(incomingStatus)
+      ? incomingStatus
+      : 'unknown';
+
+    const processRow = {
+      id: eventId,
+      time,
+      system_id: targetSystemId,
+      pid: payload.pid ?? '—',
+      ppid: payload.ppid ?? '—',
+      name: processName,
+      cmd: command,
+      event: String(
+        payload.event || 'PROCESS_EXEC_ATTEMPT'
+      ),
+      verdict: status,
+      reason: String(
+        payload.reason ||
+        'No reason provided by the backend.'
+      )
+    };
+
+    procRows.push(processRow);
+
+    // Show an alert for each newly received unsafe event.
+    if (status === 'unsafe') {
+      showUnsafeAlert(processRow);
+    }
+
+    seenEventIds.add(eventId);
+  }
+
+  procRows.sort(byTime);
+
+  // Prevent unlimited browser memory growth.
+  if (procRows.length > 2000) {
+    procRows = procRows.slice(0, 2000);
+  }
+
+  return batch.batch_id;
+}
+
+async function acknowledgeBatch(batchId) {
+  const response = await fetch(
+    BASE + API.eventsAck,
+    {
+      method: 'POST',
+      credentials: BASE ? 'include' : 'same-origin',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        batch_id: batchId
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Batch acknowledgement failed: HTTP ${response.status}`
+    );
+  }
+}
+
+/* ---------- MAIN REFRESH LOOP ---------- */
+
+async function refresh() {
+  if (refreshInProgress) return;
+
+  refreshInProgress = true;
+
+  try {
+    try {
+      const dashboard = await getJSON(API.dash);
+
+      systems = dashboard.systems || [];
+      netRows = [];
+
+      renderAdmin(dashboard.profile);
+
+      demo = false;
+      setLive(true);
+    } catch (error) {
+      console.error(
+        '[Prahari] Dashboard API failed:',
+        error
+      );
+
+      if (first) {
+        loadDemo();
+      } else {
+        setLive(false);
+      }
+    }
+
+    if (!systems.length) {
+      systems = [{
+        id: 'ebpf-local',
+        name: 'eBPF-Shield Host',
+        status: 'in_use'
+      }];
+    }
+
+    let batchId = null;
+
+    try {
+      batchId = await fetchProcessBatch();
+    } catch (error) {
+      console.error(
+        '[Prahari] Could not fetch process batch:',
+        error
+      );
+
+      if (!demo) {
+        setLive(false);
+      }
+    }
+
+    renderStats();
+    renderFloor();
+    renderTally();
+    drawDetail();
+
+    first = false;
+
+    // Acknowledge the batch after processing it in the frontend.
+    if (batchId !== null && batchId !== undefined) {
+      try {
+        await acknowledgeBatch(batchId);
+      } catch (error) {
+        console.error(
+          '[Prahari] Batch acknowledgement failed:',
+          error
+        );
+      }
+    }
+  } finally {
+    refreshInProgress = false;
+  }
+}
+
+/* ---------- DEMO FALLBACK ---------- */
+
+function loadDemo() {
+  demo = true;
+  setLive(true);
+
+  renderAdmin({
+    name: 'Admin User',
+    role: 'Security administrator',
+    email: 'admin@example.com',
+    org: 'Your organization',
+    joined: '2026-10-01'
+  });
+
+  systems = [{
+    id: 's1',
+    name: 'web-01',
+    status: 'in_use'
+  }];
+
+  // Do not fabricate process or network logs.
+  procRows = [];
+  netRows = [];
+}
+
+/* ---------- START ---------- */
+
+ensureSecurityUI();
+refresh();
+setInterval(refresh, POLL_MS);

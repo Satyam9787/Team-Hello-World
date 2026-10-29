@@ -2,10 +2,11 @@
 #include "crow.h"
 #include "Redis.h"
 #include "AuditLogger.h"
+#include "Complete_Batch_Queue.h"
 
 using namespace std;
 
-void registerRoutes(crow::SimpleApp& app, RedisManager& RedisManager,AuditLogger& AuditLogger)
+void registerRoutes(crow::SimpleApp& app, RedisManager& RedisManager,AuditLogger& AuditLogger,CompletedBatchQueue& completedBatches)
 {
     register_Home_Routes(app);
     register_Login_Routes(app,RedisManager,AuditLogger);
@@ -19,4 +20,5 @@ void registerRoutes(crow::SimpleApp& app, RedisManager& RedisManager,AuditLogger
     register_Membership_Routes(app,RedisManager);
     register_Order_list_Routes(app,RedisManager);
     register_Create_Sprint_Routes(app,RedisManager);
+    register_Ebpf_Events_Routes(app,completedBatches);
 }

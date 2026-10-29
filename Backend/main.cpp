@@ -45,12 +45,17 @@ int main()
 
      BatchQueue eventQueue(20);
 
+     CompletedBatchQueue completedBatches(100);
+
      RedisBatchWorker redisWorker(
           getEnvValue("REDIS_URI"),
           eventQueue
      );
 
-     DetectionWorker detectionWorker(eventQueue);
+     DetectionWorker detectionWorker(
+          eventQueue,
+          completedBatches
+     );
 
      std::thread redisThread(
           &RedisBatchWorker::run,
@@ -64,7 +69,7 @@ int main()
 
      crow::SimpleApp app;
 
-     registerRoutes(app,RedisManager,auditLogger);
+     registerRoutes(app,RedisManager,auditLogger,completedBatches);
      
      //Server start
      app.ssl_file("../certs/server.crt", "../certs/server.key").bindaddr("0.0.0.0").port(18080).multithreaded().run();
@@ -73,6 +78,15 @@ int main()
      auditTable.cleanupStop();
      worker.join();
      cleanupWorker.join();
+
+     redisWorker.stop();
+     eventQueue.stop();
+
+     detectionWorker.stop();
+     completedBatches.stop();
+
+     redisThread.join();
+     detectionThread.join();
 
      closeSQLite();
 

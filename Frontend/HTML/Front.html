@@ -1,109 +1,236 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Prahari · Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Libre+Baskerville:wght@400;700&display=swap">
-<link rel="stylesheet" href="Front.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Prahari · Dashboard</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap">
+
+  <!-- Use your updated CSS file -->
+  <link rel="stylesheet" href="Front.css">
 </head>
+
 <body>
 <div class="layout">
   <main>
     <header class="top">
       <div class="brand">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/><path d="m8.8 12 2.2 2.2 4.2-4.4" class="tick"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/>
+          <path d="m8.8 12 2.2 2.2 4.2-4.4" class="tick"/>
+        </svg>
         Prahari
       </div>
-      <span class="live" id="live">Live</span>
+
+      <span class="live" id="live">Connecting...</span>
     </header>
 
+    <!-- Dashboard statistics -->
     <section class="stats">
-      <div class="fig c"><b id="nTotal">0</b><span>Connected</span></div>
-      <div class="fig g"><b id="nUse">0</b><span>In use</span></div>
-      <div class="fig m"><b id="nOff">0</b><span>Disconnected</span></div>
-      <div class="fig r"><b id="nBad">0</b><span>Damaged</span></div>
+      <div class="fig c">
+        <b id="nTotal">0</b>
+        <span>Connected</span>
+      </div>
+
+      <div class="fig g">
+        <b id="nUse">0</b>
+        <span>In use</span>
+      </div>
+
+      <div class="fig m">
+        <b id="nOff">0</b>
+        <span>Disconnected</span>
+      </div>
+
+      <div class="fig r">
+        <b id="nBad">0</b>
+        <span>Damaged</span>
+      </div>
     </section>
 
-    <section class="floor" id="floor" aria-label="Connected systems"></section>
+    <!-- Connected systems -->
+    <section
+      class="floor"
+      id="floor"
+      aria-label="Connected systems">
+    </section>
   </main>
 
+  <!-- Administrator panel -->
   <aside class="admin">
     <div class="badge">
       <div class="lanyard"></div>
+
       <div class="badge-top">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/><path d="m8.8 12 2.2 2.2 4.2-4.4" class="tick"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/>
+          <path d="m8.8 12 2.2 2.2 4.2-4.4" class="tick"/>
+        </svg>
         Prahari access badge
       </div>
-      <div class="photo"><span id="avatar">A</span></div>
+
+      <div class="photo">
+        <span id="avatar">A</span>
+      </div>
+
       <h2 id="aName">Admin</h2>
       <p class="role" id="aRole"></p>
       <dl id="aData"></dl>
-      <button class="summary-btn" id="openSummary">Systems summary</button>
+
+      <button class="summary-btn" id="openSummary">
+        Systems summary
+      </button>
     </div>
+
     <h3>Threat summary</h3>
     <div id="tally" class="tally"></div>
   </aside>
 </div>
 
-<!-- System window -->
-<div class="modal" id="sysModal" role="dialog" aria-modal="true" aria-labelledby="sTitle" hidden>
+<!-- System details modal -->
+<div
+  class="modal"
+  id="sysModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="sTitle"
+  hidden>
+
   <div class="win big">
-    <div class="titlebar"><span id="sTitle">System</span><button class="x" data-close aria-label="Close">&times;</button></div>
+    <div class="titlebar">
+      <span id="sTitle">System</span>
+      <button class="x" data-close aria-label="Close">
+        &times;
+      </button>
+    </div>
+
     <div class="win-body">
       <div class="win-head">
         <div class="tabs">
-          <button class="tab on" data-tab="proc">Process logs</button>
-          <button class="tab" data-tab="net">Network logs</button>
+          <button class="tab on" data-tab="proc">
+            Process logs
+          </button>
+
+          <button class="tab" data-tab="net">
+            Network logs
+          </button>
         </div>
+
         <div class="chips" id="chips"></div>
       </div>
+
       <div class="scroll">
         <table>
           <thead id="sHead"></thead>
           <tbody id="sBody"></tbody>
         </table>
-        <p class="empty" id="sEmpty" hidden>Nothing recorded for this view yet.</p>
+
+        <p class="empty" id="sEmpty" hidden>
+          Nothing recorded for this view yet.
+        </p>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Summary window -->
-<div class="modal" id="sumModal" role="dialog" aria-modal="true" aria-labelledby="sumTitle" hidden>
+<!-- Systems summary modal -->
+<div
+  class="modal"
+  id="sumModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="sumTitle"
+  hidden>
+
   <div class="win mid">
-    <div class="titlebar"><span id="sumTitle">Systems summary</span><button class="x" data-close aria-label="Close">&times;</button></div>
+    <div class="titlebar">
+      <span id="sumTitle">Systems summary</span>
+      <button class="x" data-close aria-label="Close">
+        &times;
+      </button>
+    </div>
+
     <div class="win-body">
       <div class="sum-figs" id="sumFigs"></div>
+
       <h4>Verdicts across all systems</h4>
       <div class="tally" id="sumTally"></div>
+
       <dl class="sum-meta" id="sumMeta"></dl>
-      <button class="primary" id="sumAdd">Add a system</button>
+
+      <button class="primary" id="sumAdd">
+        Add a system
+      </button>
     </div>
   </div>
 </div>
 
-<!-- Connect window -->
-<div class="modal" id="connectModal" role="dialog" aria-modal="true" aria-labelledby="cTitle" hidden>
+<!-- Connect system modal -->
+<div
+  class="modal"
+  id="connectModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="cTitle"
+  hidden>
+
   <div class="win">
-    <div class="titlebar"><span id="cTitle">Connect a system</span><button class="x" data-close aria-label="Close">&times;</button></div>
+    <div class="titlebar">
+      <span id="cTitle">Connect a system</span>
+      <button class="x" data-close aria-label="Close">
+        &times;
+      </button>
+    </div>
+
     <div class="win-body">
-      <p class="hint">Linux only. Name the machine, then run the command on it as root. It appears here once the agent reports in.</p>
+      <p class="hint">
+        Linux only. Name the machine, then run the command
+        on it as root. It appears here once the agent reports in.
+      </p>
+
       <label for="sysName">System name</label>
-      <input id="sysName" type="text" maxlength="40" placeholder="e.g. build-server-02" autocomplete="off">
-      <button class="primary" id="makeCmd">Get install command</button>
+
+      <input
+        id="sysName"
+        type="text"
+        maxlength="40"
+        placeholder="e.g. build-server-02"
+        autocomplete="off">
+
+      <button class="primary" id="makeCmd">
+        Get install command
+      </button>
+
       <div id="cmdBox" hidden>
         <label>Run on the target system</label>
         <pre id="cmdText"></pre>
-        <button class="ghost" id="copyCmd">Copy command</button>
-        <p class="hint" id="waiting">Waiting for the system to connect</p>
+
+        <button class="ghost" id="copyCmd">
+          Copy command
+        </button>
+
+        <p class="hint" id="waiting">
+          Waiting for the system to connect
+        </p>
       </div>
+
       <p class="err" id="cErr" hidden></p>
     </div>
   </div>
 </div>
 
+<!-- Process reason modal is created dynamically by Front.js -->
+
+<!-- Load the updated JavaScript -->
 <script src="Front.js"></script>
+
+<!-- Keep this if you use your existing visual effects script -->
+<script src="Front_fx.js"></script>
+
 </body>
 </html>

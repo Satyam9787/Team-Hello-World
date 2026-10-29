@@ -66,6 +66,19 @@ void register_Front_Routes(crow::SimpleApp& app,RedisManager &RedisManager)
            return res;
      });
 
+     CROW_ROUTE(app, "/Front_fx.js")([]()
+     {
+           ifstream file(Paths::JS+ "Front_fx.js");
+
+           stringstream buffer;
+           buffer << file.rdbuf();
+
+           crow::response res(buffer.str());
+           res.set_header("Content-Type", "text/js");
+
+           return res;
+     });
+
      CROW_ROUTE(app, "/Fetch_user_data").methods("GET"_method)([&RedisManager](const crow::request& req)
      {
         string cookie_header = req.get_header_value("Cookie");

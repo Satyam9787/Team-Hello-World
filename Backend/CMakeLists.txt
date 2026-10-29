@@ -50,6 +50,7 @@ add_executable(my_app
                Routes/Protected/Order_list.cpp
                Routes/Protected/OTP_Route.cpp
                Routes/Public/404_Not_Found.cpp
+               Routes/Public/EBPF_events.cpp
                Routes/Public/Forget_Route.cpp
                Routes/Public/Home_Route.cpp
                Routes/Public/Login_Route.cpp
@@ -57,6 +58,7 @@ add_executable(my_app
                Routes/Public/Signup_Route.cpp
                src/auth_helper.cpp
                src/Compiler_service.cpp
+               src/Complete_Batch_Queue.cpp
                src/crypto_utils.cpp
                src/database.cpp
                src/env_config.cpp
