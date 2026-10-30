@@ -5,5 +5,6 @@
 
 void register_Ebpf_Events_Routes(
     crow::SimpleApp& app,
-    CompletedBatchQueue& completedBatches
+    CompletedBatchQueue& completedBatches,
+    CompletedBatchQueue& networkBatches
 );

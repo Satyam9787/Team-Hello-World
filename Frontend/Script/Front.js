@@ -2,7 +2,6 @@
 const BASE = '';
 
 const API = {
-  dash: '/api/dashboard',
   eventsNext: '/api/events/next',
   eventsAck: '/api/events/ack',
   connect: '/api/systems/connect',
@@ -901,20 +900,9 @@ function setLive(ok) {
   live.classList.toggle('down', demo || !ok);
 }
 
-/* ---------- PROCESS BATCH API ---------- */
+/* ---------- PROCESS + NETWORK BATCH API ---------- */
 
-async function fetchProcessBatch() {
-  const batch = await getJSON(API.eventsNext);
-
-  if (
-    !batch ||
-    !batch.success ||
-    !Array.isArray(batch.events) ||
-    batch.events.length === 0
-  ) {
-    return null;
-  }
-
+function ensureLocalSystem() {
   if (!systems.length) {
     systems = [{
       id: 'ebpf-local',
@@ -923,106 +911,113 @@ async function fetchProcessBatch() {
     }];
   }
 
-  const targetSystemId = systems[0].id;
+  return systems[0].id;
+}
 
-  for (const item of batch.events) {
-    if (item.id == null) {
-      console.warn(
-        '[Prahari] Event is missing its ID:',
-        item
-      );
-      continue;
-    }
-
-    const eventId = String(item.id);
-
-    // Avoid processing or alerting for the same event twice.
-    if (seenEventIds.has(eventId)) {
-      continue;
-    }
-
-    let payload;
-
-    try {
-      payload = typeof item.payload === 'string'
-        ? JSON.parse(item.payload)
-        : item.payload;
-    } catch (_) {
-      payload = {
-        event: 'INVALID_PROCESS_EVENT',
-        comm: 'Invalid event payload',
-        status: 'partial',
-        reason: 'The event payload could not be parsed.'
-      };
-    }
+function parsePayload(item, kind) {
+  try {
+    const payload = typeof item.payload === 'string'
+      ? JSON.parse(item.payload)
+      : item.payload;
 
     if (
       !payload ||
       typeof payload !== 'object' ||
       Array.isArray(payload)
     ) {
-      payload = {
-        event: 'INVALID_PROCESS_EVENT',
-        comm: 'Invalid event payload',
-        status: 'partial',
-        reason: 'The event payload is missing or invalid.'
-      };
+      throw new Error('Invalid payload');
     }
 
-    const epoch = Number(payload.timestamp_unix);
-
-    const time =
-      Number.isFinite(epoch) && epoch > 0
-        ? new Date(epoch * 1000).toISOString()
-        : new Date().toISOString();
-
-    const processName = String(
-      payload.comm || payload.name || 'unknown'
+    return payload;
+  } catch (error) {
+    console.error(
+      `[Prahari] Invalid ${kind} payload:`,
+      error,
+      item
     );
 
-    const command = String(
-      payload.cmd || processName
-    );
+    return {
+      status: 'partial',
+      reason: 'The event payload could not be parsed.',
+      comm: `Invalid ${kind} event`
+    };
+  }
+}
 
-    // Use the status produced by the backend classifier.
-    const validStatuses = [
-      'safe',
-      'unsafe',
-      'partial',
-      'unknown'
-    ];
+function eventTimestamp(payload) {
+  const value = Number(
+    payload.timestamp_unix ??
+    payload.timestamp ??
+    payload.time
+  );
 
-    const incomingStatus = String(
-      payload.status || payload.verdict || ''
-    ).toLowerCase();
+  return Number.isFinite(value) && value > 0
+    ? new Date(
+        value < 1e12 ? value * 1000 : value
+      ).toISOString()
+    : new Date().toISOString();
+}
 
-    const status = validStatuses.includes(incomingStatus)
-      ? incomingStatus
-      : 'unknown';
+function normalizedVerdict(payload) {
+  const value = String(
+    payload.status || payload.verdict || ''
+  ).toLowerCase();
 
-    const processRow = {
+  if (VERDICTS.includes(value)) return value;
+  if (value === 'blocked') return 'unsafe';
+  if (value === 'allowed') return 'safe';
+
+  return 'unknown';
+}
+
+/* ---------- PROCESS BATCH ---------- */
+
+function processProcessBatch(batch) {
+  if (
+    !batch ||
+    batch.available !== true ||
+    !Array.isArray(batch.events) ||
+    !batch.events.length
+  ) {
+    return null;
+  }
+
+  const systemId = ensureLocalSystem();
+
+  for (const item of batch.events) {
+    if (item.id == null) {
+      throw new Error(
+        'Process event is missing its Redis event ID; refusing acknowledgement.'
+      );
+    }
+
+    const eventId = `process:${String(item.id)}`;
+
+    if (seenEventIds.has(eventId)) continue;
+
+    const payload = parsePayload(item, 'process');
+    const status = normalizedVerdict(payload);
+    const name = String(payload.comm || payload.name || 'unknown');
+
+    const row = {
       id: eventId,
-      time,
-      system_id: targetSystemId,
+      time: eventTimestamp(payload),
+      system_id: systemId,
       pid: payload.pid ?? '—',
       ppid: payload.ppid ?? '—',
-      name: processName,
-      cmd: command,
-      event: String(
-        payload.event || 'PROCESS_EXEC_ATTEMPT'
-      ),
+      name,
+      cmd: String(payload.cmd || name),
+      event: String(payload.event || 'PROCESS_EXEC_ATTEMPT'),
       verdict: status,
       reason: String(
-        payload.reason ||
-        'No reason provided by the backend.'
+        payload.reason || 'No reason provided by the backend.'
       )
     };
 
-    procRows.push(processRow);
+    procRows.push(row);
 
-    // Show an alert for each newly received unsafe event.
     if (status === 'unsafe') {
-      showUnsafeAlert(processRow);
+      showUnsafeAlert(row);
     }
 
     seenEventIds.add(eventId);
@@ -1030,7 +1025,6 @@ async function fetchProcessBatch() {
 
   procRows.sort(byTime);
 
-  // Prevent unlimited browser memory growth.
   if (procRows.length > 2000) {
     procRows = procRows.slice(0, 2000);
   }
@@ -1038,20 +1032,110 @@ async function fetchProcessBatch() {
   return batch.batch_id;
 }
 
-async function acknowledgeBatch(batchId) {
-  const response = await fetch(
-    BASE + API.eventsAck,
-    {
-      method: 'POST',
-      credentials: BASE ? 'include' : 'same-origin',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        batch_id: batchId
-      })
+/* ---------- NETWORK BATCH ---------- */
+
+function processNetworkBatch(batch) {
+  if (
+    !batch ||
+    batch.available !== true ||
+    !Array.isArray(batch.events) ||
+    !batch.events.length
+  ) {
+    return null;
+  }
+
+  const systemId = ensureLocalSystem();
+
+  for (const item of batch.events) {
+    if (item.id == null) {
+      throw new Error(
+        'Network event is missing its Redis event ID; refusing acknowledgement.'
+      );
     }
-  );
+
+    const eventId = `network:${String(item.id)}`;
+
+    if (seenEventIds.has(eventId)) continue;
+
+    const payload = parsePayload(item, 'network');
+
+    netRows.push({
+      id: eventId,
+      time: eventTimestamp(payload),
+      system_id: systemId,
+      proto: String(payload.protocol || payload.family || '—'),
+      dest: String(
+        payload.destination_ip ||
+        payload.dest ||
+        payload.remote_ip ||
+        '—'
+      ),
+      port: payload.destination_port ?? payload.port ?? '—',
+      process: String(
+        payload.comm ||
+        payload.process ||
+        payload.name ||
+        '—'
+      ),
+      pid: payload.pid ?? '—',
+      verdict: normalizedVerdict(payload),
+      reason: String(
+        payload.reason || 'No reason provided by the backend.'
+      )
+    });
+
+    seenEventIds.add(eventId);
+  }
+
+  netRows.sort(byTime);
+
+  if (netRows.length > 2000) {
+    netRows = netRows.slice(0, 2000);
+  }
+
+  return batch.batch_id;
+}
+
+/* ---------- FETCH BOTH BATCHES ---------- */
+
+async function fetchEventBatches() {
+  const response = await getJSON(API.eventsNext);
+
+  if (!response || response.success !== true) {
+    throw new Error(
+      'Events API returned an unsuccessful response.'
+    );
+  }
+
+  return {
+    processBatchId: processProcessBatch(response.process),
+    networkBatchId: processNetworkBatch(response.network)
+  };
+}
+
+/* ---------- ACKNOWLEDGE BOTH BATCHES ---------- */
+
+async function acknowledgeBatches(batchIds) {
+  const body = {};
+
+  if (batchIds.processBatchId != null) {
+    body.process_batch_id = batchIds.processBatchId;
+  }
+
+  if (batchIds.networkBatchId != null) {
+    body.network_batch_id = batchIds.networkBatchId;
+  }
+
+  if (!Object.keys(body).length) return;
+
+  const response = await fetch(BASE + API.eventsAck, {
+    method: 'POST',
+    credentials: BASE ? 'include' : 'same-origin',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
 
   if (!response.ok) {
     throw new Error(
@@ -1068,50 +1152,27 @@ async function refresh() {
   refreshInProgress = true;
 
   try {
+    // No /api/dashboard call: this page monitors the local eBPF host.
+    ensureLocalSystem();
+    renderAdmin();
+
+    demo = false;
+    setLive(true);
+
+    let batchIds = {
+      processBatchId: null,
+      networkBatchId: null
+    };
+
     try {
-      const dashboard = await getJSON(API.dash);
-
-      systems = dashboard.systems || [];
-      netRows = [];
-
-      renderAdmin(dashboard.profile);
-
-      demo = false;
-      setLive(true);
+      batchIds = await fetchEventBatches();
     } catch (error) {
       console.error(
-        '[Prahari] Dashboard API failed:',
+        '[Prahari] Could not fetch/process event batches:',
         error
       );
 
-      if (first) {
-        loadDemo();
-      } else {
-        setLive(false);
-      }
-    }
-
-    if (!systems.length) {
-      systems = [{
-        id: 'ebpf-local',
-        name: 'eBPF-Shield Host',
-        status: 'in_use'
-      }];
-    }
-
-    let batchId = null;
-
-    try {
-      batchId = await fetchProcessBatch();
-    } catch (error) {
-      console.error(
-        '[Prahari] Could not fetch process batch:',
-        error
-      );
-
-      if (!demo) {
-        setLive(false);
-      }
+      setLive(false);
     }
 
     renderStats();
@@ -1121,45 +1182,19 @@ async function refresh() {
 
     first = false;
 
-    // Acknowledge the batch after processing it in the frontend.
-    if (batchId !== null && batchId !== undefined) {
-      try {
-        await acknowledgeBatch(batchId);
-      } catch (error) {
-        console.error(
-          '[Prahari] Batch acknowledgement failed:',
-          error
-        );
-      }
+    // Acknowledge both stream batches after processing and rendering.
+    try {
+      await acknowledgeBatches(batchIds);
+    } catch (error) {
+      console.error(
+        '[Prahari] Batch acknowledgement failed:',
+        error
+      );
     }
+
   } finally {
     refreshInProgress = false;
   }
-}
-
-/* ---------- DEMO FALLBACK ---------- */
-
-function loadDemo() {
-  demo = true;
-  setLive(true);
-
-  renderAdmin({
-    name: 'Admin User',
-    role: 'Security administrator',
-    email: 'admin@example.com',
-    org: 'Your organization',
-    joined: '2026-10-01'
-  });
-
-  systems = [{
-    id: 's1',
-    name: 'web-01',
-    status: 'in_use'
-  }];
-
-  // Do not fabricate process or network logs.
-  procRows = [];
-  netRows = [];
 }
 
 /* ---------- START ---------- */

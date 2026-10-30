@@ -1,4 +1,3 @@
-
 #include "Detection_worker.h"
 #include "Complete_Batch_Queue.h"
 #include "crow.h"

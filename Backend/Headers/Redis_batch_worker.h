@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <condition_variable>
@@ -37,7 +38,10 @@ class RedisBatchWorker {
 public:
     RedisBatchWorker(
         const std::string& redisUri,
-        BatchQueue& queue
+        BatchQueue& queue,
+        const std::string& streamName,
+        const std::string& groupName,
+        const std::string& consumerName
     );
 
     void run();
@@ -46,5 +50,11 @@ public:
 private:
     std::string redisUri;
     BatchQueue& queue;
+
+    std::string streamName;
+    std::string groupName;
+    std::string consumerName;
+
     std::atomic<bool> running{true};
 };
+

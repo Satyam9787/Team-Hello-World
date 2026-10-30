@@ -5,7 +5,13 @@
 #include "AuditLogger.h"
 #include "Complete_Batch_Queue.h"
 
-void registerRoutes(crow::SimpleApp& app, RedisManager& RedisManager,AuditLogger& AuditLogger,CompletedBatchQueue& completedBatches);
+void registerRoutes(
+    crow::SimpleApp& app,
+    RedisManager& RedisManager,
+    AuditLogger& AuditLogger,
+    CompletedBatchQueue& completedBatches,
+    CompletedBatchQueue& networkBatches
+);
 
 //Public Routes
 void register_Home_Routes(crow::SimpleApp& app);
@@ -16,7 +22,7 @@ void register_forget_Routes(crow::SimpleApp& app,RedisManager &RedisManager,Audi
 void register_JWT_check_Routes(crow::SimpleApp& app,RedisManager &RedisManager,AuditLogger &AuditLogger);
 void register_404_Not_Found_Routes(crow::SimpleApp& app);
 void register_Membership_Routes(crow::SimpleApp& app,RedisManager& RedisManager);
-void register_Ebpf_Events_Routes(crow::SimpleApp& app,CompletedBatchQueue& completedBatches);
+void register_Ebpf_Events_Routes(crow::SimpleApp& app,CompletedBatchQueue& completedBatches,CompletedBatchQueue& networkBatches);
 
 //Protected Routes
 void register_Front_Routes(crow::SimpleApp& app,RedisManager &RedisManager);

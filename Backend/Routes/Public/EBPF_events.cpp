@@ -1,70 +1,114 @@
 #include "routes.h"
 
 #include <cstdint>
+#include <string>
 #include <utility>
 
-void register_Ebpf_Events_Routes(crow::SimpleApp& app,CompletedBatchQueue& completedBatches) 
+void register_Ebpf_Events_Routes(
+    crow::SimpleApp& app,
+    CompletedBatchQueue& processBatches,
+    CompletedBatchQueue& networkBatches
+)
 {
-    CROW_ROUTE(app, "/api/events/next").methods(crow::HTTPMethod::GET)([&completedBatches]() {
-        CompletedBatch batch;
+    CROW_ROUTE(app, "/api/events/next")
+    .methods(crow::HTTPMethod::GET)(
+        [&processBatches, &networkBatches]() {
 
-        crow::json::wvalue response;
-        response["success"] = true;
+            crow::json::wvalue response;
+            response["success"] = true;
 
-        if (!completedBatches.peek(batch)) {
-            response["count"] = 0;
-            response["events"] = crow::json::wvalue::list{};
+            auto addBatch = [](
+                crow::json::wvalue& response,
+                const std::string& key,
+                CompletedBatchQueue& queue
+            ) {
+                CompletedBatch batch;
+                crow::json::wvalue::list events;
+
+                if (!queue.peek(batch)) {
+                    response[key]["available"] = false;
+                    response[key]["count"] = 0;
+                    response[key]["events"] = std::move(events);
+                    return;
+                }
+
+                response[key]["available"] = true;
+
+                response[key]["batch_id"] =
+                    static_cast<std::int64_t>(batch.id);
+
+                response[key]["count"] = batch.events.size();
+
+                for (const auto& event : batch.events) {
+                    crow::json::wvalue item;
+
+                    item["id"] = event.id;
+                    item["payload"] = event.payload;
+
+                    events.push_back(std::move(item));
+                }
+
+                response[key]["events"] = std::move(events);
+            };
+
+            addBatch(response, "process", processBatches);
+            addBatch(response, "network", networkBatches);
+
             return crow::response{std::move(response)};
         }
+    );
+    CROW_ROUTE(app, "/api/events/ack")
+    .methods(crow::HTTPMethod::POST)(
+        [&processBatches, &networkBatches](
+            const crow::request& req
+        ) {
 
-        response["batch_id"] = static_cast<std::int64_t>(batch.id);
-        response["count"] = batch.events.size();
+            auto body = crow::json::load(req.body);
 
-        crow::json::wvalue::list events;
+            if (!body) {
+                return crow::response(
+                    crow::status::BAD_REQUEST,
+                    "Invalid JSON body"
+                );
+            }
 
-        for (const auto& event : batch.events) {
-            crow::json::wvalue item;
-            item["id"] = event.id;
-            item["payload"] = event.payload;
-            events.push_back(std::move(item));
+            crow::json::wvalue response;
+
+            response["success"] = true;
+
+            // Process batch acknowledgement
+            if (body.has("process_batch_id")) {
+
+                auto batchId =
+                    body["process_batch_id"].u();
+
+                bool acknowledged =
+                    processBatches.acknowledge(batchId);
+
+                response["process"]["acknowledged"] =
+                    acknowledged;
+
+                response["process"]["batch_id"] =
+                    static_cast<std::int64_t>(batchId);
+            }
+
+            // Network batch acknowledgement
+            if (body.has("network_batch_id")) {
+
+                auto batchId =
+                    body["network_batch_id"].u();
+
+                bool acknowledged =
+                    networkBatches.acknowledge(batchId);
+
+                response["network"]["acknowledged"] =
+                    acknowledged;
+
+                response["network"]["batch_id"] =
+                    static_cast<std::int64_t>(batchId);
+            }
+
+            return crow::response{std::move(response)};
         }
-
-        response["events"] = std::move(events);
-
-        // Print the exact batch that will be sent to frontend.
-std::cout << "\n========== eBPF BATCH RESPONSE ==========\n";
-
-std::cout << "Batch ID: " << batch.id << '\n';
-std::cout << "Total Events: " << batch.events.size() << '\n';
-
-for (const auto& event : batch.events) {
-    std::cout << "Event ID: " << event.id << '\n';
-    std::cout << "Payload: " << event.payload << "\n\n";
-}
-
-std::cout << "========== END OF BATCH ================\n\n";
-
-// Send response after printing.
-return crow::response{std::move(response)};
-
-        return crow::response{std::move(response)};
-    });
-
-    CROW_ROUTE(app, "/api/events/ack").methods(crow::HTTPMethod::POST)([&completedBatches](const crow::request& req) {
-        auto body = crow::json::load(req.body);
-
-        if (!body || !body.has("batch_id")) {
-            return crow::response(400, "Invalid batch acknowledgement");
-        }
-
-        const auto id = body["batch_id"].i();
-
-        if (id <= 0 ||
-            !completedBatches.acknowledge(
-                static_cast<std::uint64_t>(id))) {
-            return crow::response(409, "Batch not available");
-        }
-
-        return crow::response(200, "Batch acknowledged");
-    });
+    );
 }
