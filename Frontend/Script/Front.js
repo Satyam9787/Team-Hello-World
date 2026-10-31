@@ -29,6 +29,7 @@ const tiles = new Map();
 
 let alertHost;
 let reasonModal;
+let netModal;
 
 function ensureSecurityUI() {
   if (!alertHost) {
@@ -92,6 +93,67 @@ function ensureSecurityUI() {
         event.target.hasAttribute('data-close')
       ) {
         closeModal(reasonModal);
+      }
+    });
+  }
+
+  if (!netModal) {
+    netModal = document.createElement('div');
+    netModal.id = 'networkDetailModal';
+    netModal.className = 'modal';
+    netModal.hidden = true;
+    netModal.setAttribute('role', 'dialog');
+    netModal.setAttribute('aria-modal', 'true');
+    netModal.setAttribute('aria-labelledby', 'netDetailTitle');
+
+    const win = el('div', 'win mid');
+    const titlebar = el('div', 'titlebar');
+
+    const title = el('span', null, 'Network connection details');
+    title.id = 'netDetailTitle';
+
+    const close = el('button', 'x', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close');
+    close.setAttribute('data-close', '');
+
+    titlebar.append(title, close);
+
+    const body = el('div', 'win-body process-reason-body');
+
+    const name = el('h3');
+    name.id = 'netDetailName';
+
+    const status = el('p');
+    status.id = 'netDetailStatus';
+    status.className = 'reason-status';
+
+    const fields = el('dl', 'net-detail-grid');
+    fields.id = 'netDetailFields';
+
+    const reasonLabel = el('strong', null, 'Detection reason');
+
+    const reason = el('p');
+    reason.id = 'netDetailReason';
+    reason.className = 'process-reason-text';
+
+    const rawLabel = el('strong', null, 'Raw event data');
+    rawLabel.className = 'net-raw-label';
+
+    const raw = el('pre', 'net-raw');
+    raw.id = 'netDetailRaw';
+
+    body.append(name, status, fields, reasonLabel, reason, rawLabel, raw);
+    win.append(titlebar, body);
+    netModal.appendChild(win);
+    document.body.appendChild(netModal);
+
+    netModal.addEventListener('click', event => {
+      if (
+        event.target === netModal ||
+        event.target.hasAttribute('data-close')
+      ) {
+        closeModal(netModal);
       }
     });
   }
@@ -160,6 +222,51 @@ function showProcessReason(row) {
     `Time: ${fmtTime(row.time)}`;
 
   openModal(reasonModal);
+}
+
+function showNetworkDetails(row) {
+  ensureSecurityUI();
+
+  const status = verdictOf(row);
+  const target = row.port !== '—' && row.port != null
+    ? `${row.dest}:${row.port}`
+    : row.dest;
+
+  $('netDetailName').textContent =
+    `${row.process || 'unknown'} → ${target}`;
+
+  $('netDetailStatus').textContent =
+    `Status: ${status.toUpperCase()}`;
+
+  $('netDetailStatus').className = `reason-status ${status}`;
+
+  const fullTime = new Date(row.time);
+
+  const fields = [
+    ['Time', isNaN(fullTime) ? String(row.time) : fullTime.toLocaleString([], { hour12: false })],
+    ['Process', row.process || '—'],
+    ['PID', row.pid ?? '—'],
+    ['Protocol', row.proto || '—'],
+    ['Destination IP', row.dest || '—'],
+    ['Destination port', row.port ?? '—'],
+    ['Event ID', row.id || '—']
+  ];
+
+  const box = $('netDetailFields');
+  box.textContent = '';
+
+  fields.forEach(([key, value]) => {
+    box.append(el('dt', null, key), el('dd', null, value));
+  });
+
+  $('netDetailReason').textContent =
+    row.reason || 'No reason provided by the backend.';
+
+  $('netDetailRaw').textContent = row.raw
+    ? JSON.stringify(row.raw, null, 2)
+    : 'No raw data available.';
+
+  openModal(netModal);
 }
 
 /* ---------- HELPERS ---------- */
@@ -746,6 +853,18 @@ function drawDetail() {
       tr.appendChild(
         el('td', 'nw', row.process || '—')
       );
+
+      // Clicking anywhere on a network row opens its details.
+      tr.classList.add('row-click');
+      tr.tabIndex = 0;
+      tr.title = 'View connection details';
+      tr.onclick = () => showNetworkDetails(row);
+      tr.onkeydown = event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          showNetworkDetails(row);
+        }
+      };
     }
 
     const td = el('td');
@@ -1081,7 +1200,8 @@ function processNetworkBatch(batch) {
       verdict: normalizedVerdict(payload),
       reason: String(
         payload.reason || 'No reason provided by the backend.'
-      )
+      ),
+      raw: payload
     });
 
     seenEventIds.add(eventId);

@@ -325,3 +325,12 @@ pre{background:#150e08;border:2px solid #24170a;padding:12px;white-space:pre-wra
 .reason-status.unknown {
   color: #9ca3af;
 }
+
+/* ---- network log row click + details window ---- */
+tbody tr.row-click{cursor:pointer}
+tbody tr.row-click:focus-visible{outline:2px solid #c4570d;outline-offset:-2px}
+.net-detail-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:12px 0 16px}
+.net-detail-grid dt{color:var(--mute);text-transform:uppercase;letter-spacing:.06em;font-size:.8em}
+.net-detail-grid dd{margin:0;overflow-wrap:anywhere}
+.net-raw-label{display:block;margin-top:14px}
+.net-raw{margin:6px 0 0;padding:12px;max-height:200px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#f8efd7;border:1px solid #cdbb8f;font-size:.85em}
