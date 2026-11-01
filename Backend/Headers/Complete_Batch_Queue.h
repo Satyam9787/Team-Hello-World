@@ -1,11 +1,12 @@
 #pragma once
 
-#include "Redis_batch_worker.h"
+#include "Event_Batch.h"
 
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <mutex>
+#include <cstddef>
 
 struct CompletedBatch {
     std::uint64_t id;

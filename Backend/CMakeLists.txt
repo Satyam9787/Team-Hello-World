@@ -37,8 +37,6 @@ add_executable(my_app
                MongoDB/Logs_auth.cpp
                MongoDB/signup_auth.cpp        
                Redis/AttemptManager.cpp
-               Redis/Detection_worker.cpp
-               Redis/Network_detection.cpp
                Redis/OTP.cpp
                Redis/Redis_JWT_check.cpp
                Redis/Redis_batch_worker.cpp

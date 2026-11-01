@@ -1,44 +1,17 @@
-
 #pragma once
 
-#include <condition_variable>
-#include <cstddef>
-#include <mutex>
-#include <queue>
-#include <string>
-#include <vector>
+#include "Event_Batch.h"
+
 #include <atomic>
+#include <string>
 
-struct StreamEvent {
-    std::string id;
-    std::string payload;
-};
-
-using EventBatch = std::vector<StreamEvent>;
-
-class BatchQueue {
-public:
-    explicit BatchQueue(std::size_t maxBatches = 20);
-
-    bool push(EventBatch batch);
-    bool pop(EventBatch& batch);
-    void stop();
-
-private:
-    std::queue<EventBatch> batches;
-    std::mutex mutex;
-    std::condition_variable notEmpty;
-    std::condition_variable notFull;
-
-    std::size_t maxBatches;
-    bool stopped = false;
-};
+class CompletedBatchQueue;
 
 class RedisBatchWorker {
 public:
     RedisBatchWorker(
         const std::string& redisUri,
-        BatchQueue& queue,
+        CompletedBatchQueue& completedQueue,
         const std::string& streamName,
         const std::string& groupName,
         const std::string& consumerName
@@ -49,7 +22,7 @@ public:
 
 private:
     std::string redisUri;
-    BatchQueue& queue;
+    CompletedBatchQueue& completedQueue;
 
     std::string streamName;
     std::string groupName;

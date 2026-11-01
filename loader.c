@@ -8,6 +8,8 @@
 
 #include <bpf/libbpf.h>
 
+#include "classify.h"
+
 #define LOG_PATH "logs/process.events.jsonl"
 
 static volatile sig_atomic_t stop;
@@ -21,6 +23,38 @@ struct process_event {
 struct app_context {
     FILE *log_file;
 };
+
+/* ---------- PID -> COMM CACHE (for parent-child lookups) ---------- */
+/* Direct-mapped cache: fine for a monitoring agent, not a perfect
+   history. A pid can get overwritten by another pid with the same
+   slot before its children spawn; acceptable tradeoff for now, swap
+   for a real hash map with chaining if that matters later. */
+
+#define PID_MAP_SIZE 4096
+
+typedef struct {
+    uint32_t pid;
+    char comm[17];
+    int valid;
+} pid_entry_t;
+
+static pid_entry_t pid_map[PID_MAP_SIZE];
+
+static void pid_map_set(uint32_t pid, const char *comm) {
+    pid_entry_t *entry = &pid_map[pid % PID_MAP_SIZE];
+    entry->pid = pid;
+    strncpy(entry->comm, comm, sizeof(entry->comm) - 1);
+    entry->comm[sizeof(entry->comm) - 1] = '\0';
+    entry->valid = 1;
+}
+
+static const char *pid_map_get(uint32_t pid) {
+    pid_entry_t *entry = &pid_map[pid % PID_MAP_SIZE];
+    if (entry->valid && entry->pid == pid) {
+        return entry->comm;
+    }
+    return NULL;
+}
 
 /* Escape strings so they remain valid JSON. */
 static void json_escape(
@@ -59,6 +93,7 @@ static int handle_event(
     struct process_event *event = data;
     char comm[17] = {0};
     char escaped_comm[17 * 6 + 1];
+    char escaped_reason[320];
     time_t now;
 
     if (data_sz < sizeof(*event)) {
@@ -72,22 +107,42 @@ static int handle_event(
     json_escape(comm, escaped_comm, sizeof(escaped_comm));
     now = time(NULL);
 
+    /* ---- CLASSIFY: safe / unsafe / partial / unknown ---- */
+    process_event_t pev = {
+        .comm = comm,
+        .cmd = comm,          /* no full command line captured yet; using comm */
+        .pid = (int)event->pid,
+        .ppid = (int)event->ppid,
+        .parent_comm = pid_map_get(event->ppid)
+    };
+
+    classification_t verdict = classify_process(&pev);
+    json_escape(verdict.reason, escaped_reason, sizeof(escaped_reason));
+
+    /* Remember this pid's comm so its future children can look it up
+       as a parent. */
+    pid_map_set(event->pid, comm);
+
     /* Save first, before printing to the terminal. */
     if (fprintf(app->log_file,
         "{\"event\":\"PROCESS_EXEC_ATTEMPT\","
         "\"pid\":%u,\"ppid\":%u,"
-        "\"comm\":\"%s\",\"timestamp_unix\":%lld}\n",
+        "\"comm\":\"%s\",\"timestamp_unix\":%lld,"
+        "\"status\":\"%s\",\"reason\":\"%s\"}\n",
         event->pid,
         event->ppid,
         escaped_comm,
-        (long long)now) < 0 || fflush(app->log_file) != 0) {
+        (long long)now,
+        verdict_to_str(verdict.verdict),
+        escaped_reason) < 0 || fflush(app->log_file) != 0) {
         fprintf(stderr, "Failed to write process log\n");
         return 0;
     }
 
     printf("Process execution detected!\n");
-    printf("PID: %u | PPID: %u | COMM: %s\n\n",
-           event->pid, event->ppid, comm);
+    printf("PID: %u | PPID: %u | COMM: %s | VERDICT: %s\n\n",
+           event->pid, event->ppid, comm,
+           verdict_to_str(verdict.verdict));
     fflush(stdout);
 
     return 0;

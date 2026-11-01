@@ -17,8 +17,6 @@
 #include <thread>
 
 #include "Redis_batch_worker.h"
-#include "Detection_worker.h"
-#include "Network_detection.h"
 
 using namespace std;
 
@@ -74,64 +72,40 @@ int main() {
         &auditTable
     );
 
-    // ================= PROCESS PIPELINE =================
+    // PROCESS PIPELINE
 
-    BatchQueue eventQueue(20);
     CompletedBatchQueue completedBatches(100);
 
     RedisBatchWorker redisWorker(
         redisUri,
-        eventQueue,
+        completedBatches,
         "ebpf:process_events",
         "ebpf-detectors",
         "crow-worker-1"
     );
 
-    DetectionWorker detectionWorker(
-        eventQueue,
-        completedBatches
-    );
+    // NETWORK PIPELINE
 
-    // ================= NETWORK PIPELINE =================
-
-    BatchQueue networkEventQueue(20);
     CompletedBatchQueue networkCompletedBatches(100);
 
     RedisBatchWorker networkRedisWorker(
         redisUri,
-        networkEventQueue,
+        networkCompletedBatches,
         "ebpf:network_events",
         "ebpf-network-detectors",
         "network-worker-1"
     );
 
-    NetworkDetectionWorker networkDetectionWorker(
-        networkEventQueue,
-        networkCompletedBatches
-    );
-
-    // ================= PROCESS THREADS =================
+    // THREADS
 
     thread redisThread(
         &RedisBatchWorker::run,
         &redisWorker
     );
 
-    thread detectionThread(
-        &DetectionWorker::run,
-        &detectionWorker
-    );
-
-    // ================= NETWORK THREADS =================
-
     thread networkRedisThread(
         &RedisBatchWorker::run,
         &networkRedisWorker
-    );
-
-    thread networkDetectionThread(
-        &NetworkDetectionWorker::run,
-        &networkDetectionWorker
     );
 
     // ================= CROW SERVER =================
@@ -168,24 +142,13 @@ int main() {
     redisWorker.stop();
     networkRedisWorker.stop();
 
-    // Wake up queue consumers/producers.
-    eventQueue.stop();
-    networkEventQueue.stop();
-
-    // Stop detection workers.
-    detectionWorker.stop();
-    networkDetectionWorker.stop();
-
     // Stop completed queues.
     completedBatches.stop();
     networkCompletedBatches.stop();
 
     // Join all monitoring threads.
     redisThread.join();
-    detectionThread.join();
-
     networkRedisThread.join();
-    networkDetectionThread.join();
 
     // ================= LOGGING SHUTDOWN =================
 

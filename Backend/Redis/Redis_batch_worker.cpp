@@ -1,5 +1,5 @@
 #include "Redis_batch_worker.h"
-
+#include "Complete_Batch_Queue.h"
 #include <sw/redis++/redis++.h>
 
 #include <chrono>
@@ -10,72 +10,15 @@
 #include <utility>
 #include <vector>
 
-// ================= BATCH QUEUE =================
-
-BatchQueue::BatchQueue(std::size_t capacity)
-    : maxBatches(capacity) {
-}
-
-bool BatchQueue::push(EventBatch batch) {
-    std::unique_lock<std::mutex> lock(mutex);
-
-    notFull.wait(lock, [&] {
-        return stopped || batches.size() < maxBatches;
-    });
-
-    if (stopped) {
-        return false;
-    }
-
-    batches.push(std::move(batch));
-
-    lock.unlock();
-    notEmpty.notify_one();
-
-    return true;
-}
-
-bool BatchQueue::pop(EventBatch& batch) {
-    std::unique_lock<std::mutex> lock(mutex);
-
-    notEmpty.wait(lock, [&] {
-        return stopped || !batches.empty();
-    });
-
-    if (batches.empty()) {
-        return false;
-    }
-
-    batch = std::move(batches.front());
-    batches.pop();
-
-    lock.unlock();
-    notFull.notify_one();
-
-    return true;
-}
-
-void BatchQueue::stop() {
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        stopped = true;
-    }
-
-    notEmpty.notify_all();
-    notFull.notify_all();
-}
-
-// ================= REDIS BATCH WORKER =================
-
 RedisBatchWorker::RedisBatchWorker(
     const std::string& uri,
-    BatchQueue& eventQueue,
+    CompletedBatchQueue& completedQueueRef,
     const std::string& stream,
     const std::string& group,
     const std::string& consumer
 )
     : redisUri(uri),
-      queue(eventQueue),
+      completedQueue(completedQueueRef),
       streamName(stream),
       groupName(group),
       consumerName(consumer) {
@@ -174,15 +117,16 @@ void RedisBatchWorker::run() {
 
                 const auto count = batch.size();
 
-                if (!queue.push(std::move(batch))) {
+                // Directly push into CompletedBatchQueue.
+                if (!completedQueue.push(std::move(batch))) {
                     break;
                 }
 
                 std::cout
                     << "[RedisBatchWorker] Queued "
                     << count
-                    << " events from "
-                    << streamName
+                    << " events directly into CompletedBatchQueue"
+                    << " | Stream: " << streamName
                     << '\n';
 
             } else {
