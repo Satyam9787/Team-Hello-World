@@ -9,14 +9,13 @@
 #include "AuditLogs.h"
 #include "AuditLogger.h"
 #include "LogQueue.h"
+#include "BatchRedisStore.h"
 
 #include <functional>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <thread>
-
-#include "Redis_batch_worker.h"
 
 using namespace std;
 
@@ -27,20 +26,17 @@ int main() {
     loadEnv("../.env");
 
     const string redisUri = getEnvValue("REDIS_URI");
-    const string networkStream =
-        getEnvValue("NETWORK_STREAM_NAME");
 
     if (redisUri.empty()) {
         throw runtime_error("REDIS_URI is missing");
     }
 
-    if (networkStream.empty()) {
-        throw runtime_error("NETWORK_STREAM_NAME is missing");
-    }
-
     // ================= REDIS =================
 
     RedisManager RedisManager(redisUri);
+
+    // Separate Redis connection for Prahari batches.
+    BatchRedisStore batchStore(redisUri);
 
     // ================= CRYPTO =================
 
@@ -72,55 +68,15 @@ int main() {
         &auditTable
     );
 
-    // PROCESS PIPELINE
-
-    CompletedBatchQueue completedBatches(100);
-
-    RedisBatchWorker redisWorker(
-        redisUri,
-        completedBatches,
-        "ebpf:process_events",
-        "ebpf-detectors",
-        "crow-worker-1"
-    );
-
-    // NETWORK PIPELINE
-
-    CompletedBatchQueue networkCompletedBatches(100);
-
-    RedisBatchWorker networkRedisWorker(
-        redisUri,
-        networkCompletedBatches,
-        "ebpf:network_events",
-        "ebpf-network-detectors",
-        "network-worker-1"
-    );
-
-    // THREADS
-
-    thread redisThread(
-        &RedisBatchWorker::run,
-        &redisWorker
-    );
-
-    thread networkRedisThread(
-        &RedisBatchWorker::run,
-        &networkRedisWorker
-    );
-
     // ================= CROW SERVER =================
 
     crow::SimpleApp app;
-
-    // Existing route registration is retained for now.
-    // Network API integration comes in the next phase.
 
     registerRoutes(
         app,
         RedisManager,
         auditLogger,
-        completedBatches,
-        networkCompletedBatches
+        batchStore
     );
 
     cout << "[PRAHARI] Starting server...\n";
@@ -138,27 +94,11 @@ int main() {
 
     cout << "[PRAHARI] Shutting down...\n";
 
-    // Stop Redis consumers.
-    redisWorker.stop();
-    networkRedisWorker.stop();
-
-    // Stop completed queues.
-    completedBatches.stop();
-    networkCompletedBatches.stop();
-
-    // Join all monitoring threads.
-    redisThread.join();
-    networkRedisThread.join();
-
-    // ================= LOGGING SHUTDOWN =================
-
     LogQueue.stop();
     auditTable.cleanupStop();
 
     worker.join();
     cleanupWorker.join();
-
-    // ================= CLEANUP =================
 
     closeSQLite();
     cleanup_database();

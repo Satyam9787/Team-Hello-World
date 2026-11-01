@@ -1,114 +1,184 @@
 #include "routes.h"
 
-#include <cstdint>
+#include <nlohmann/json.hpp>
+#include <iostream>
 #include <string>
-#include <utility>
+
+using json = nlohmann::json;
 
 void register_Ebpf_Events_Routes(
     crow::SimpleApp& app,
-    CompletedBatchQueue& processBatches,
-    CompletedBatchQueue& networkBatches
-)
-{
-    CROW_ROUTE(app, "/api/events/next")
-    .methods(crow::HTTPMethod::GET)(
-        [&processBatches, &networkBatches]() {
+    BatchRedisStore& batchStore
+) {
+    // ==================================
+    // GET NEXT BATCH
+    // ==================================
 
-            crow::json::wvalue response;
-            response["success"] = true;
+    CROW_ROUTE(app, "/api/batches/next")
+    .methods(crow::HTTPMethod::GET)
+    ([&batchStore]() {
 
-            auto addBatch = [](
-                crow::json::wvalue& response,
-                const std::string& key,
-                CompletedBatchQueue& queue
-            ) {
-                CompletedBatch batch;
-                crow::json::wvalue::list events;
+        try {
+            BatchRecord batch;
 
-                if (!queue.peek(batch)) {
-                    response[key]["available"] = false;
-                    response[key]["count"] = 0;
-                    response[key]["events"] = std::move(events);
-                    return;
-                }
+            if (!batchStore.getNextBatch(batch)) {
+                json response = {
+                    {"success", true},
+                    {"available", false},
+                    {"message", "No batch available"}
+                };
 
-                response[key]["available"] = true;
+                return crow::response(200, response.dump());
+            }
 
-                response[key]["batch_id"] =
-                    static_cast<std::int64_t>(batch.id);
+            json payload = json::parse(batch.payload);
 
-                response[key]["count"] = batch.events.size();
-
-                for (const auto& event : batch.events) {
-                    crow::json::wvalue item;
-
-                    item["id"] = event.id;
-                    item["payload"] = event.payload;
-
-                    events.push_back(std::move(item));
-                }
-
-                response[key]["events"] = std::move(events);
+            json response = {
+                {"success", true},
+                {"available", true},
+                {"redis_id", batch.redisId},
+                {"batch", payload}
             };
 
-            addBatch(response, "process", processBatches);
-            addBatch(response, "network", networkBatches);
-
-            return crow::response{std::move(response)};
+            return crow::response(200, response.dump());
         }
-    );
-    CROW_ROUTE(app, "/api/events/ack")
-    .methods(crow::HTTPMethod::POST)(
-        [&processBatches, &networkBatches](
-            const crow::request& req
-        ) {
+        catch (const std::exception& e) {
+            std::cerr << "[GET /api/batches/next] "
+                      << e.what() << '\n';
 
-            auto body = crow::json::load(req.body);
+            json response = {
+                {"success", false},
+                {"message", "Internal server error"}
+            };
 
-            if (!body) {
+            return crow::response(500, response.dump());
+        }
+    });
+
+
+    // ==================================
+    // ACKNOWLEDGE BATCH
+    // ==================================
+
+    CROW_ROUTE(app, "/api/batches/ack")
+    .methods(crow::HTTPMethod::POST)
+    ([&batchStore](const crow::request& req) {
+
+        try {
+            json body = json::parse(req.body);
+
+            if (!body.is_object() ||
+                !body.contains("redis_id") ||
+                !body["redis_id"].is_string()) {
+
                 return crow::response(
-                    crow::status::BAD_REQUEST,
-                    "Invalid JSON body"
+                    400,
+                    R"({"success":false,"message":"redis_id is required"})"
                 );
             }
 
-            crow::json::wvalue response;
+            const std::string redisId = body["redis_id"];
 
-            response["success"] = true;
+            bool acknowledged =
+                batchStore.acknowledgeBatch(redisId);
 
-            // Process batch acknowledgement
-            if (body.has("process_batch_id")) {
+            json response = {
+                {"success", acknowledged},
+                {"acknowledged", acknowledged},
+                {"redis_id", redisId}
+            };
 
-                auto batchId =
-                    body["process_batch_id"].u();
-
-                bool acknowledged =
-                    processBatches.acknowledge(batchId);
-
-                response["process"]["acknowledged"] =
-                    acknowledged;
-
-                response["process"]["batch_id"] =
-                    static_cast<std::int64_t>(batchId);
-            }
-
-            // Network batch acknowledgement
-            if (body.has("network_batch_id")) {
-
-                auto batchId =
-                    body["network_batch_id"].u();
-
-                bool acknowledged =
-                    networkBatches.acknowledge(batchId);
-
-                response["network"]["acknowledged"] =
-                    acknowledged;
-
-                response["network"]["batch_id"] =
-                    static_cast<std::int64_t>(batchId);
-            }
-
-            return crow::response{std::move(response)};
+            return crow::response(
+                acknowledged ? 200 : 404,
+                response.dump()
+            );
         }
-    );
+        catch (const std::exception& e) {
+            std::cerr << "[POST /api/batches/ack] "
+                      << e.what() << '\n';
+
+            return crow::response(
+                400,
+                R"({"success":false,"message":"Invalid request"})"
+            );
+        }
+    });
+
+
+    // ==================================
+    // RECEIVE BATCH FROM UBUNTU
+    // ==================================
+
+    CROW_ROUTE(app, "/api/batches/ingest")
+    .methods(crow::HTTPMethod::POST)
+    ([&batchStore](const crow::request& req) {
+
+        try {
+            json body = json::parse(req.body);
+
+            if (!body.is_object() ||
+                !body.contains("batch_id") ||
+                !body["batch_id"].is_string() ||
+                !body.contains("process_logs") ||
+                !body["process_logs"].is_array() ||
+                !body.contains("network_logs") ||
+                !body["network_logs"].is_array()) {
+
+                return crow::response(
+                    400,
+                    R"({"success":false,"message":"Invalid batch payload"})"
+                );
+            }
+
+            const std::string batchId = body["batch_id"];
+
+            if (batchId.empty()) {
+                return crow::response(
+                    400,
+                    R"({"success":false,"message":"Empty batch_id"})"
+                );
+            }
+
+            // Actual arrays ke according counts update karo.
+            body["process_count"] =
+                body["process_logs"].size();
+
+            body["network_count"] =
+                body["network_logs"].size();
+
+            std::string redisId;
+            bool duplicate = false;
+
+            bool stored = batchStore.ingestBatch(
+                batchId,
+                body.dump(),
+                redisId,
+                duplicate
+            );
+
+            json response = {
+                {"success", stored},
+                {"batch_id", batchId},
+                {"redis_id", redisId},
+                {"duplicate", duplicate},
+                {"message", stored
+                    ? "Batch received successfully"
+                    : "Batch storage failed"}
+            };
+
+            return crow::response(
+                stored ? 200 : 500,
+                response.dump()
+            );
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[POST /api/batches/ingest] "
+                      << e.what() << '\n';
+
+            return crow::response(
+                400,
+                R"({"success":false,"message":"Invalid batch request"})"
+            );
+        }
+    });
 }

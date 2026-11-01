@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -181,7 +180,7 @@
 
   <div class="win">
     <div class="titlebar">
-      <span id="cTitle">Connect a system</span>
+      <span id="cTitle">Connect a System</span>
       <button class="x" data-close aria-label="Close">
         &times;
       </button>
@@ -189,8 +188,7 @@
 
     <div class="win-body">
       <p class="hint">
-        Linux only. Name the machine, then run the command
-        on it as root. It appears here once the agent reports in.
+        Enter the name of the system you want to connect.
       </p>
 
       <label for="sysName">System name</label>
@@ -199,27 +197,93 @@
         id="sysName"
         type="text"
         maxlength="40"
-        placeholder="e.g. build-server-02"
+        placeholder="e.g. ubuntu-vm"
         autocomplete="off">
 
       <button class="primary" id="makeCmd">
-        Get install command
+        Get Install Command
       </button>
 
-      <div id="cmdBox" hidden>
-        <label>Run on the target system</label>
-        <pre id="cmdText"></pre>
+      <p class="err" id="cErr" hidden></p>
+    </div>
+  </div>
+</div>
 
-        <button class="ghost" id="copyCmd">
-          Copy command
-        </button>
 
-        <p class="hint" id="waiting">
-          Waiting for the system to connect
+<!-- Administrator contact modal -->
+<div
+  class="modal"
+  id="adminContactModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="adminContactTitle"
+  hidden>
+
+  <div class="win">
+    <div class="titlebar">
+      <span id="adminContactTitle">Administrator Assistance</span>
+
+      <button
+        class="x"
+        data-close
+        aria-label="Close">
+        &times;
+      </button>
+    </div>
+
+    <div class="win-body">
+
+      <h3>System Setup Required</h3>
+
+      <p class="hint">
+        Kindly contact the administrator for proper setup.
+        The administrator will guide you through the system
+        installation and connection process.
+      </p>
+
+      <hr>
+
+      <h4>Administrator Contact Details</h4>
+
+      <div class="admin-contact-info">
+
+        <p>
+          <strong>Name:</strong>
+          <span>ADMIN_NAME</span>
         </p>
+
+        <p>
+          <strong>Department:</strong>
+          <span>ADMIN_DEPARTMENT</span>
+        </p>
+
+        <p>
+          <strong>Email:</strong>
+          <a href="mailto:ADMIN_EMAIL">
+            ADMIN_EMAIL
+          </a>
+        </p>
+
+        <p>
+          <strong>Contact Number:</strong>
+          <a href="tel:ADMIN_PHONE">
+            ADMIN_PHONE
+          </a>
+        </p>
+
       </div>
 
-      <p class="err" id="cErr" hidden></p>
+      <p class="hint">
+        Please share your system name with the administrator
+        when requesting setup assistance.
+      </p>
+
+      <button
+        class="primary"
+        data-close>
+        Understood
+      </button>
+
     </div>
   </div>
 </div>

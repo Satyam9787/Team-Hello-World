@@ -86,7 +86,7 @@ void register_Otp_Routes(crow::SimpleApp& app,RedisManager& RedisManager,AuditLo
            string usecase = body["usecase"].s();
            string otp = generateOTP();
 
-           cout<<otp<<endl;
+           cout<<otp<<"\n\n\n\n\n\n"<<endl;
 
            VerifyOtpResult result = sendEmail(email,otp,RedisManager,usecase,AuditLogger,IP);
 

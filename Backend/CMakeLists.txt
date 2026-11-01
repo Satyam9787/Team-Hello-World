@@ -39,7 +39,6 @@ add_executable(my_app
                Redis/AttemptManager.cpp
                Redis/OTP.cpp
                Redis/Redis_JWT_check.cpp
-               Redis/Redis_batch_worker.cpp
                Redis/Redis_Start.cpp
                Redis/Reset_Pass.cpp
                Routes/Protected/Create_Sprint.cpp
@@ -56,8 +55,8 @@ add_executable(my_app
                Routes/Public/Membership.cpp
                Routes/Public/Signup_Route.cpp
                src/auth_helper.cpp
+               src/BatchRedisStore.cpp
                src/Compiler_service.cpp
-               src/Complete_Batch_Queue.cpp
                src/crypto_utils.cpp
                src/database.cpp
                src/env_config.cpp
