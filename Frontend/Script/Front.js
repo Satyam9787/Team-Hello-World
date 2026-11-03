@@ -13,10 +13,11 @@ const BASE = '';
 const API = {
   connect: '/api/systems/connect',
   summary: '/api/summary',
+  eventsAck: '/api/events/ack',
 
   killProcess: '/kill_process',
   blockConnection: '/block_connection',
-  freezeSystem: '/freeze_system'
+  freezeSystem: '/freeze_demo'
 };
 
 const VERDICTS = [
@@ -898,7 +899,9 @@ async function blockSelectedConnection() {
 
 
 /* ==========================================
-   ACTION 3: FREEZE SYSTEM DEMO
+   ACTION 3: FREEZE SYSTEM DEMO (/freeze_demo)
+   Posts the hostname + host_id that are bound
+   to the clicked computer tile.
 ========================================== */
 
 async function freezeSystem(systemId, button) {
@@ -915,15 +918,29 @@ async function freezeSystem(systemId, button) {
     return;
   }
 
+  // hostname / host_id stored with this visual computer
+  const tileEl = tiles.get(systemId);
+
+  const hostname = tileEl?.dataset.hostname || system.name;
+
+  const hostId = tileEl?.dataset.hostId || system.host_id;
+
+  if (!hostname || !hostId) {
+    alert('Hostname or Host ID missing for this system.');
+    return;
+  }
+
   const confirmed = confirm(
-    `Start the freeze demonstration on ${system.name}?`
+    `Freeze ${hostname} for 10 seconds?`
   );
 
   if (!confirmed) return;
 
   button.disabled = true;
 
-  button.textContent = 'Starting demo...';
+  button.textContent = 'Starting...';
+
+  let timer = null;
 
   try {
 
@@ -932,11 +949,37 @@ async function freezeSystem(systemId, button) {
       {
         action: 'freeze_demo',
 
-        hostname: system.name,
+        hostname: hostname,
 
-        host_id: system.host_id
+        host_id: hostId
       }
     );
+
+    // The freeze lasts 10 seconds; keep the button locked meanwhile.
+
+    let left = 10;
+
+    button.textContent = `Frozen (${left}s)`;
+
+    timer = setInterval(() => {
+
+      left--;
+
+      if (left <= 0) {
+
+        clearInterval(timer);
+
+        button.disabled =
+          system.status === 'disconnected';
+
+        button.textContent = 'Freeze the system';
+
+        return;
+      }
+
+      button.textContent = `Frozen (${left}s)`;
+
+    }, 1000);
 
     alert(
       result.message ||
@@ -954,7 +997,7 @@ async function freezeSystem(systemId, button) {
       'Freeze demonstration failed: ' + error.message
     );
 
-  } finally {
+    if (timer) clearInterval(timer);
 
     button.disabled = false;
 
@@ -1488,6 +1531,11 @@ function renderFloor() {
 
     wrapper.dataset.id = system.id;
 
+    // hostname + host_id stored with this visual computer
+    wrapper.dataset.hostname = system.name;
+
+    wrapper.dataset.hostId = system.host_id;
+
     const tile = wrapper.querySelector('.mon');
 
     tile.dataset.id = system.id;
@@ -1513,8 +1561,13 @@ function renderFloor() {
     const freezeButton =
       wrapper.querySelector('.freeze-system-btn');
 
-    freezeButton.disabled =
-      system.status === 'disconnected';
+    // Don't override the button while the 10-second freeze countdown runs.
+    if (!freezeButton.textContent.startsWith('Frozen')) {
+
+      freezeButton.disabled =
+        system.status === 'disconnected';
+
+    }
 
     floor.appendChild(wrapper);
 
@@ -2083,6 +2136,9 @@ function setLive(ok) {
 
 /* ==========================================
    SYSTEM IDENTIFICATION
+   hostname + host_id arrive with every batch and
+   are stored on the system object (and later on
+   its computer tile).
 ========================================== */
 
 function getOrCreateSystem(hostname, hostId) {
@@ -2122,6 +2178,8 @@ function getOrCreateSystem(hostname, hostId) {
   } else {
 
     system.name = name;
+
+    system.host_id = id;
 
     system.status = 'in_use';
 

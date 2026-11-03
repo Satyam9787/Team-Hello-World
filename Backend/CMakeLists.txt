@@ -31,7 +31,6 @@ add_executable(my_app
                SQLite/LogQueue.cpp
                SQLite/AuditLogs.cpp
                SQLite/Tables.cpp
-               MongoDB/forget_auth.cpp
                MongoDB/Json_user.cpp
                MongoDB/login_auth.cpp 
                MongoDB/Logs_auth.cpp
@@ -40,27 +39,18 @@ add_executable(my_app
                Redis/OTP.cpp
                Redis/Redis_JWT_check.cpp
                Redis/Redis_Start.cpp
-               Redis/Reset_Pass.cpp
-               Routes/Protected/Create_Sprint.cpp
-               Routes/Protected/Dashboard_Route.cpp
                Routes/Protected/Front_Route.cpp
                Routes/Protected/JWT_check.cpp
-               Routes/Protected/Order_list.cpp
                Routes/Protected/OTP_Route.cpp
-               Routes/Public/404_Not_Found.cpp
                Routes/Public/EBPF_events.cpp
-               Routes/Public/Forget_Route.cpp
                Routes/Public/Home_Route.cpp
                Routes/Public/Login_Route.cpp
-               Routes/Public/Membership.cpp
                Routes/Public/Signup_Route.cpp
                src/auth_helper.cpp
                src/BatchRedisStore.cpp
-               src/Compiler_service.cpp
                src/crypto_utils.cpp
                src/database.cpp
                src/env_config.cpp
-               src/forget.cpp
                src/JWT_token.cpp
                src/login.cpp
                src/otp.cpp

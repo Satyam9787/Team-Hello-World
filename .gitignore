@@ -40,6 +40,6 @@ Backend/certs/server.key
 /.venv
 /network_loader
 /push_logs
-/push_network_logs
-/tail_network_redis
 /tail_redis
+/network_monitor.bpf.ob
+/monitor.bpf.o
