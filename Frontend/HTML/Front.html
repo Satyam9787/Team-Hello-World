@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Prahari · Dashboard</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap">
+
+  <!-- Use your updated CSS file -->
+  <link rel="stylesheet" href="Front.css">
+  <!-- Logs analysis window styles -->
+  <link rel="stylesheet" href="Front_analysis.css">
+</head>
+
+<body>
+<div class="layout">
+  <main>
+    <header class="top">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/>
+          <path d="m8.8 12 2.2 2.2 4.2-4.4" class="tick"/>
+        </svg>
+        Prahari
+      </div>
+
+      <span class="live" id="live">Connecting...</span>
+    </header>
+
+    <!-- Dashboard statistics -->
+    <section class="stats">
+      <div class="fig c">
+        <b id="nTotal">0</b>
+        <span>Connected</span>
+      </div>
+
+      <div class="fig g">
+        <b id="nUse">0</b>
+        <span>In use</span>
+      </div>
+
+      <div class="fig m">
+        <b id="nOff">0</b>
+        <span>Disconnected</span>
+      </div>
+
+      <div class="fig r">
+        <b id="nBad">0</b>
+        <span>Damaged</span>
+      </div>
+    </section>
+
+    <!-- Connected systems -->
+    <section
+      class="floor"
+      id="floor"
+      aria-label="Connected systems">
+    </section>
+  </main>
+
+  <!-- Administrator panel -->
+  <aside class="admin">
+    <div class="badge">
+      <div class="lanyard"></div>
+
+      <div class="badge-top">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/>
+          <path d="m8.8 12 2.2 2.2 4.2-4.4" class="tick"/>
+        </svg>
+        Prahari access badge
+      </div>
+
+      <div class="photo">
+        <span id="avatar">A</span>
+      </div>
+
+      <h2 id="aName">Admin</h2>
+      <p class="role" id="aRole"></p>
+      <dl id="aData"></dl>
+
+      <button class="summary-btn" id="openSummary">
+        Systems summary
+      </button>
+
+      <button class="summary-btn analysis-btn" id="openAnalysis">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polyline points="2,17 7,11 11,14 16,5 22,10"/>
+        </svg>
+        Logs analysis
+      </button>
+    </div>
+
+    <h3>Threat summary</h3>
+    <div id="tally" class="tally"></div>
+  </aside>
+</div>
+
+<!-- System details modal -->
+<div
+  class="modal"
+  id="sysModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="sTitle"
+  hidden>
+
+  <div class="win big">
+    <div class="titlebar">
+      <span id="sTitle">System</span>
+      <button class="x" data-close aria-label="Close">
+        &times;
+      </button>
+    </div>
+
+    <div class="win-body">
+      <div class="win-head">
+        <div class="tabs">
+          <button class="tab on" data-tab="proc">
+            Process logs
+          </button>
+
+          <button class="tab" data-tab="net">
+            Network logs
+          </button>
+        </div>
+
+        <div class="chips" id="chips"></div>
+      </div>
+
+      <div class="scroll">
+        <table>
+          <thead id="sHead"></thead>
+          <tbody id="sBody"></tbody>
+        </table>
+
+        <p class="empty" id="sEmpty" hidden>
+          Nothing recorded for this view yet.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Systems summary modal -->
+<div
+  class="modal"
+  id="sumModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="sumTitle"
+  hidden>
+
+  <div class="win mid">
+    <div class="titlebar">
+      <span id="sumTitle">Systems summary</span>
+      <button class="x" data-close aria-label="Close">
+        &times;
+      </button>
+    </div>
+
+    <div class="win-body">
+      <div class="sum-figs" id="sumFigs"></div>
+
+      <h4>Verdicts across all systems</h4>
+      <div class="tally" id="sumTally"></div>
+
+      <dl class="sum-meta" id="sumMeta"></dl>
+
+      <button class="primary" id="sumAdd">
+        Add a system
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Connect system modal -->
+<div
+  class="modal"
+  id="connectModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="cTitle"
+  hidden>
+
+  <div class="win">
+    <div class="titlebar">
+      <span id="cTitle">Connect a System</span>
+      <button class="x" data-close aria-label="Close">
+        &times;
+      </button>
+    </div>
+
+    <div class="win-body">
+      <p class="hint">
+        Enter the name of the system you want to connect.
+      </p>
+
+      <label for="sysName">System name</label>
+
+      <input
+        id="sysName"
+        type="text"
+        maxlength="40"
+        placeholder="e.g. ubuntu-vm"
+        autocomplete="off">
+
+      <button class="primary" id="makeCmd">
+        Get Install Command
+      </button>
+
+      <p class="err" id="cErr" hidden></p>
+    </div>
+  </div>
+</div>
+
+
+<!-- Administrator contact modal -->
+<div
+  class="modal"
+  id="adminContactModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="adminContactTitle"
+  hidden>
+
+  <div class="win">
+    <div class="titlebar">
+      <span id="adminContactTitle">Administrator Assistance</span>
+
+      <button
+        class="x"
+        data-close
+        aria-label="Close">
+        &times;
+      </button>
+    </div>
+
+    <div class="win-body">
+
+      <h3>System Setup Required</h3>
+
+      <p class="hint">
+        Kindly contact the administrator for proper setup.
+        The administrator will guide you through the system
+        installation and connection process.
+      </p>
+
+      <hr>
+
+      <h4>Administrator Contact Details</h4>
+
+      <div class="admin-contact-info">
+
+        <p>
+          <strong>Name:</strong>
+          <span>Prakhar Trivedi</span>
+        </p>
+
+        <p>
+          <strong>Department:</strong>
+          <span>Computer Science Engineering(C.S.E)</span>
+        </p>
+
+        <p>
+          <strong>Email:</strong>
+          <a href="mailto:ADMIN_EMAIL">
+            prakhartrivedi9369@gmail.com
+          </a>
+        </p>
+
+        <p>
+          <strong>Contact Number:</strong>
+          <a href="tel:ADMIN_PHONE">
+            +919369425011
+          </a>
+        </p>
+
+      </div>
+
+      <p class="hint">
+        Please share your system name with the administrator
+        when requesting setup assistance.
+      </p>
+
+      <button
+        class="primary"
+        data-close>
+        Understood
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<!-- Logs analysis modal (live safety graph) -->
+<div
+  class="modal"
+  id="analysisModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="anTitle"
+  hidden>
+
+  <div class="win big an-win">
+    <div class="titlebar">
+      <span id="anTitle">Logs analysis &middot; Live safety timeline</span>
+      <button class="x" data-close aria-label="Close">&times;</button>
+    </div>
+
+    <div class="win-body">
+
+      <div class="an-controls">
+        <div class="an-ranges" id="anRanges">
+          <button type="button" class="an-tab" data-range="1m">1 min</button>
+          <button type="button" class="an-tab on" data-range="5m">5 min</button>
+          <button type="button" class="an-tab" data-range="15m">15 min</button>
+          <button type="button" class="an-tab" data-range="1h">1 hour</button>
+        </div>
+
+        <div class="an-tools">
+          <label class="an-sel">
+            <span>System</span>
+            <select id="anSys"><option value="all">All systems</option></select>
+          </label>
+          <button type="button" class="an-btn" id="anPause">Pause</button>
+          <button type="button" class="an-btn" id="anDemo">Demo feed: off</button>
+        </div>
+      </div>
+
+      <div class="an-top">
+        <div class="an-index" id="anIndexBox">
+          <small>Safety index</small>
+          <div class="an-index-row">
+            <b id="anIndex">&mdash;</b>
+            <em id="anDelta"></em>
+          </div>
+          <span class="an-state" id="anState">No data</span>
+        </div>
+
+        <div class="an-stats">
+          <div class="fig r"><b id="anUnsafe">0</b><span>Unsafe events</span></div>
+          <div class="fig c"><b id="anTotal">0</b><span>Total events</span></div>
+          <div class="fig g"><b class="an-time" id="anSafest">&mdash;</b><span>Safest moment</span></div>
+          <div class="fig m"><b class="an-time" id="anRisk">&mdash;</b><span>Riskiest moment</span></div>
+        </div>
+      </div>
+
+      <div class="an-main">
+        <div class="an-screen" id="anScreen">
+          <canvas id="anCanvas" class="an-chart"></canvas>
+          <div class="an-live" id="anLiveTag">LIVE</div>
+          <div class="an-empty" id="anEmpty">AWAITING DATA</div>
+        </div>
+
+        <aside class="an-feed">
+          <h4>Live tape</h4>
+          <ul id="anFeed"></ul>
+        </aside>
+      </div>
+
+      <div class="an-legend">
+        <span class="safe"><i></i>safe</span>
+        <span class="partial"><i></i>partial</span>
+        <span class="unknown"><i></i>unknown</span>
+        <span class="unsafe"><i></i>unsafe</span>
+      </div>
+
+      <p class="hint an-note">
+        Safety index (0&ndash;100) = safe events count fully, partial and unknown count half,
+        unsafe count zero. Line above 80 is safe, 50&ndash;80 watch, below 50 danger.
+        Bars at the bottom show event volume per time slot.
+      </p>
+
+    </div>
+  </div>
+</div>
+
+<!-- Process reason modal is created dynamically by Front.js -->
+
+<!-- Load the updated JavaScript -->
+<script src="Front.js"></script>
+
+<!-- Logs analysis: live graph (reads data from Front.js) -->
+<script src="Front_analysis.js"></script>
+
+<!-- Keep this if you use your existing visual effects script -->
+<script src="Front_fx.js"></script>
+
+</body>
+</html>

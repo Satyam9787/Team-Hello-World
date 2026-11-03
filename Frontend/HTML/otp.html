@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prahari: verify your identity</title>
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="otp.css">
+</head>
+<body>
+<div class="cur-dot"></div><div class="cur-ring"></div>
+<canvas id="rain" aria-hidden="true"></canvas><div class="vig" aria-hidden="true"></div>
+
+<main class="card" id="card">
+  <div class="top">
+    <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#ee7a1f" stroke-width="1.6"><path d="M12 2.5 4 5.8v5.6c0 4.7 3.2 8.4 8 10.1 4.8-1.7 8-5.4 8-10.1V5.8z"/><circle cx="12" cy="11.5" r="2.6" fill="#ee7a1f" stroke="none"/></svg>Prahari</span>
+    <span class="chip"><b></b>Secure channel</span>
+  </div>
+
+  <form id="otpForm" novalidate>
+    <h1 id="ttl">Verify your identity</h1>
+    <p class="sub">Enter the 6 digit code we sent to <strong id="emailDisplay">your registered email</strong>.</p>
+
+    <div class="boxes" role="group" aria-label="One time code">
+      <input class="otp-input" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Digit 1">
+      <input class="otp-input" inputmode="numeric" maxlength="1" aria-label="Digit 2">
+      <input class="otp-input" inputmode="numeric" maxlength="1" aria-label="Digit 3">
+      <input class="otp-input" inputmode="numeric" maxlength="1" aria-label="Digit 4">
+      <input class="otp-input" inputmode="numeric" maxlength="1" aria-label="Digit 5">
+      <input class="otp-input" inputmode="numeric" maxlength="1" aria-label="Digit 6">
+    </div>
+
+    <p class="msg" id="otpError" role="alert"></p>
+
+    <button type="submit" class="btn verify">Verify email <span>→</span></button>
+
+    <div class="meta">
+      <span>Resend in <span class="timer" id="timer">00:30</span></span>
+      <button type="button" class="link" id="resendBtn" disabled>Resend code</button>
+    </div>
+    <button type="button" class="link" id="changeEmail">Use a different email</button>
+  </form>
+
+  <div class="success" id="successState">
+    <h2>Email verified.</h2>
+    <p>Continue to your account.</p>
+    <button type="button" class="btn" id="continueBtn">Continue</button>
+  </div>
+
+  <div class="log" id="log" aria-label="Session log"></div>
+</main>
+
+<script src="otp_fx.js"></script>
+<script src="otp.js"></script>
+</body>
+</html>
