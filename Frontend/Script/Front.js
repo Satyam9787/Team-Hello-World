@@ -1,21 +1,23 @@
 /* ==========================================
-   PRAHARI DASHBOARD - FRONT.JS
-   Redis Batch API Integration
+   PRAHARI DASHBOARD
+   WebSocket + Redis Batch + Response Actions
 ========================================== */
 
 
-/* ---------- API CONFIGURATION ---------- */
+/* ==========================================
+   API CONFIGURATION
+========================================== */
 
 const BASE = '';
 
 const API = {
-  eventsNext: '/api/batches/next',
-  eventsAck: '/api/batches/ack',
   connect: '/api/systems/connect',
-  summary: '/api/summary'
-};
+  summary: '/api/summary',
 
-const POLL_MS = 5000;
+  killProcess: '/kill_process',
+  blockConnection: '/block_connection',
+  freezeSystem: '/freeze_system'
+};
 
 const VERDICTS = [
   'safe',
@@ -27,7 +29,9 @@ const VERDICTS = [
 const $ = id => document.getElementById(id);
 
 
-/* ---------- GLOBAL STATE ---------- */
+/* ==========================================
+   GLOBAL STATE
+========================================== */
 
 let systems = [];
 
@@ -41,15 +45,175 @@ let openId = null;
 let tab = 'proc';
 let vfilter = 'all';
 
-const seenEventIds = new Set();
+let selectedProcessRow = null;
+let selectedNetworkRow = null;
 
-let refreshInProgress = false;
+const seenEventIds = new Set();
+const MAX_SEEN_EVENT_IDS = 10000;
 
 const tiles = new Map();
 
+function rememberEventId(eventId) {
+
+  if (seenEventIds.has(eventId)) {
+    return false;
+  }
+
+  seenEventIds.add(eventId);
+
+  if (seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+    const oldestId = seenEventIds.values().next().value;
+    seenEventIds.delete(oldestId);
+  }
+
+  return true;
+}
+
 
 /* ==========================================
-   SECURITY ALERTS + REASON DIALOG
+   BASIC HELPERS
+========================================== */
+
+const el = (tag, cls, text) => {
+
+  const element = document.createElement(tag);
+
+  if (cls) {
+    element.className = cls;
+  }
+
+  if (text != null) {
+    element.textContent = String(text);
+  }
+
+  return element;
+};
+
+
+async function getJSON(url, opts = {}) {
+
+  const response = await fetch(BASE + url, {
+
+    credentials: BASE ? 'include' : 'same-origin',
+
+    ...opts
+
+  });
+
+  let data;
+
+  try {
+    data = await response.json();
+  } catch (_) {
+    throw new Error(`Invalid JSON response from ${url}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.message || `HTTP ${response.status}: ${url}`
+    );
+  }
+
+  return data;
+}
+
+
+async function postAction(url, payload) {
+
+  const response = await getJSON(url, {
+
+    method: 'POST',
+
+    headers: {
+      'Content-Type': 'application/json'
+    },
+
+    body: JSON.stringify(payload)
+
+  });
+
+  if (response.success !== true) {
+
+    throw new Error(
+      response.message || 'Action execution failed'
+    );
+
+  }
+
+  return response;
+}
+
+
+const verdictOf = row => {
+
+  const verdict = String(
+    row.verdict || ''
+  ).toLowerCase();
+
+  if (VERDICTS.includes(verdict)) {
+    return verdict;
+  }
+
+  if (row.status === 'blocked') {
+    return 'unsafe';
+  }
+
+  if (row.status === 'allowed') {
+    return 'safe';
+  }
+
+  return 'unknown';
+};
+
+
+const cmdOf = row =>
+  row.cmd || row.name || '';
+
+
+const STATUS = {
+
+  in_use: 'In use',
+  idle: 'Idle',
+  disconnected: 'Disconnected',
+  damaged: 'Damaged'
+
+};
+
+
+const fmtTime = value => {
+
+  const date = new Date(value);
+
+  return isNaN(date)
+    ? String(value)
+    : date.toLocaleTimeString([], {
+        hour12: false
+      });
+
+};
+
+
+const byTime = (a, b) =>
+  new Date(b.time) - new Date(a.time);
+
+
+const logsOf = (rows, id) =>
+  rows
+    .filter(row => row.system_id === id)
+    .sort(byTime);
+
+
+function getSystem(systemId) {
+
+  return systems.find(
+    system => system.id === systemId
+  );
+
+}
+
+
+/* ==========================================
+   SECURITY ALERTS + DETAIL MODALS
 ========================================== */
 
 let alertHost;
@@ -61,27 +225,31 @@ function ensureSecurityUI() {
 
   if (!alertHost) {
 
-    alertHost = document.createElement('div');
+    alertHost = el('div', 'security-alerts');
 
     alertHost.id = 'securityAlerts';
-    alertHost.className = 'security-alerts';
 
     alertHost.setAttribute('aria-live', 'assertive');
+
     alertHost.setAttribute('aria-atomic', 'false');
 
     document.body.appendChild(alertHost);
+
   }
 
 
+  /* ---------- PROCESS MODAL ---------- */
+
   if (!reasonModal) {
 
-    reasonModal = document.createElement('div');
+    reasonModal = el('div', 'modal');
 
     reasonModal.id = 'processReasonModal';
-    reasonModal.className = 'modal';
+
     reasonModal.hidden = true;
 
     reasonModal.setAttribute('role', 'dialog');
+
     reasonModal.setAttribute('aria-modal', 'true');
 
     reasonModal.setAttribute(
@@ -94,7 +262,11 @@ function ensureSecurityUI() {
 
     const titlebar = el('div', 'titlebar');
 
-    const title = el('span', null, 'Process details');
+    const title = el(
+      'span',
+      null,
+      'Process details'
+    );
 
     title.id = 'processReasonTitle';
 
@@ -103,23 +275,29 @@ function ensureSecurityUI() {
 
     close.type = 'button';
 
-    close.setAttribute('aria-label', 'Close');
     close.setAttribute('data-close', '');
+
+    close.setAttribute('aria-label', 'Close');
 
 
     titlebar.append(title, close);
 
 
-    const body = el('div', 'win-body process-reason-body');
+    const body = el(
+      'div',
+      'win-body process-reason-body'
+    );
 
 
     const name = el('h3');
+
     name.id = 'processReasonName';
 
 
     const status = el('p');
 
     status.id = 'processReasonStatus';
+
     status.className = 'reason-status';
 
 
@@ -133,13 +311,34 @@ function ensureSecurityUI() {
     const reason = el('p');
 
     reason.id = 'processReasonText';
+
     reason.className = 'process-reason-text';
 
 
     const meta = el('p');
 
     meta.id = 'processReasonMeta';
+
     meta.className = 'hint';
+
+
+    const killButton = el(
+      'button',
+      'primary',
+      'Kill the process'
+    );
+
+    killButton.type = 'button';
+
+    killButton.id = 'killProcessButton';
+
+    killButton.style.background = '#b91c1c';
+
+    killButton.style.color = '#ffffff';
+
+    killButton.style.marginTop = '15px';
+
+    killButton.onclick = killSelectedProcess;
 
 
     body.append(
@@ -147,8 +346,10 @@ function ensureSecurityUI() {
       status,
       reasonLabel,
       reason,
-      meta
+      meta,
+      killButton
     );
+
 
     win.append(titlebar, body);
 
@@ -171,15 +372,18 @@ function ensureSecurityUI() {
   }
 
 
+  /* ---------- NETWORK MODAL ---------- */
+
   if (!netModal) {
 
-    netModal = document.createElement('div');
+    netModal = el('div', 'modal');
 
     netModal.id = 'networkDetailModal';
-    netModal.className = 'modal';
+
     netModal.hidden = true;
 
     netModal.setAttribute('role', 'dialog');
+
     netModal.setAttribute('aria-modal', 'true');
 
     netModal.setAttribute(
@@ -205,23 +409,29 @@ function ensureSecurityUI() {
 
     close.type = 'button';
 
-    close.setAttribute('aria-label', 'Close');
     close.setAttribute('data-close', '');
+
+    close.setAttribute('aria-label', 'Close');
 
 
     titlebar.append(title, close);
 
 
-    const body = el('div', 'win-body process-reason-body');
+    const body = el(
+      'div',
+      'win-body process-reason-body'
+    );
 
 
     const name = el('h3');
+
     name.id = 'netDetailName';
 
 
     const status = el('p');
 
     status.id = 'netDetailStatus';
+
     status.className = 'reason-status';
 
 
@@ -240,6 +450,7 @@ function ensureSecurityUI() {
     const reason = el('p');
 
     reason.id = 'netDetailReason';
+
     reason.className = 'process-reason-text';
 
 
@@ -257,6 +468,25 @@ function ensureSecurityUI() {
     raw.id = 'netDetailRaw';
 
 
+    const blockButton = el(
+      'button',
+      'primary',
+      'Block the connection'
+    );
+
+    blockButton.type = 'button';
+
+    blockButton.id = 'blockConnectionButton';
+
+    blockButton.style.background = '#b91c1c';
+
+    blockButton.style.color = '#ffffff';
+
+    blockButton.style.marginTop = '15px';
+
+    blockButton.onclick = blockSelectedConnection;
+
+
     body.append(
       name,
       status,
@@ -264,8 +494,10 @@ function ensureSecurityUI() {
       reasonLabel,
       reason,
       rawLabel,
-      raw
+      raw,
+      blockButton
     );
+
 
     win.append(titlebar, body);
 
@@ -290,143 +522,76 @@ function ensureSecurityUI() {
 }
 
 
-/* ---------- UNSAFE PROCESS ALERT ---------- */
-
-function showUnsafeAlert(row) {
-
-  ensureSecurityUI();
-
-
-  const alert = el('section', 'security-alert');
-
-  alert.setAttribute('role', 'alert');
-
-
-  const heading = el(
-    'strong',
-    null,
-    '⚠ UNSAFE PROCESS DETECTED'
-  );
-
-
-  const description = el(
-    'p',
-    null,
-    `${row.name || 'Unknown process'} (PID ${row.pid ?? '—'})`
-  );
-
-
-  const reason = el(
-    'p',
-    null,
-    row.reason || 'No detection reason provided by the backend.'
-  );
-
-
-  const details = el(
-    'button',
-    'security-alert-details',
-    'View details'
-  );
-
-  details.type = 'button';
-
-  details.onclick = () => showProcessReason(row);
-
-
-  const dismiss = el(
-    'button',
-    'security-alert-close',
-    'Dismiss'
-  );
-
-  dismiss.type = 'button';
-
-  dismiss.onclick = () => alert.remove();
-
-
-  alert.append(
-    heading,
-    description,
-    reason,
-    details,
-    dismiss
-  );
-
-  alertHost.prepend(alert);
-
-
-  window.setTimeout(() => alert.remove(), 10000);
-
-}
-
-
-/* ---------- PROCESS REASON ---------- */
+/* ==========================================
+   PROCESS DETAILS
+========================================== */
 
 function showProcessReason(row) {
 
   ensureSecurityUI();
 
-  const status = verdictOf(row);
+  selectedProcessRow = row;
 
+  const status = verdictOf(row);
 
   $('processReasonName').textContent =
     row.name || 'Unknown process';
 
-
   $('processReasonStatus').textContent =
     `Status: ${status.toUpperCase()}`;
-
 
   $('processReasonStatus').className =
     `reason-status ${status}`;
 
-
   $('processReasonText').textContent =
     row.reason || 'No reason provided by the backend.';
-
 
   $('processReasonMeta').textContent =
     `PID: ${row.pid ?? '—'} | ` +
     `PPID: ${row.ppid ?? '—'} | ` +
+    `UID: ${row.uid ?? '—'} | ` +
     `Event: ${row.event || '—'} | ` +
     `Time: ${fmtTime(row.time)}`;
 
+  const button = $('killProcessButton');
+
+  button.disabled = false;
+
+  button.textContent = 'Kill the process';
 
   openModal(reasonModal);
 
 }
 
 
-/* ---------- NETWORK DETAILS ---------- */
+/* ==========================================
+   NETWORK DETAILS
+========================================== */
 
 function showNetworkDetails(row) {
 
   ensureSecurityUI();
 
-  const status = verdictOf(row);
+  selectedNetworkRow = row;
 
+  const status = verdictOf(row);
 
   const target =
     row.port !== '—' && row.port != null
       ? `${row.dest}:${row.port}`
       : row.dest;
 
-
   $('netDetailName').textContent =
     `${row.process || 'unknown'} → ${target}`;
 
-
   $('netDetailStatus').textContent =
     `Status: ${status.toUpperCase()}`;
-
 
   $('netDetailStatus').className =
     `reason-status ${status}`;
 
 
   const fullTime = new Date(row.time);
-
 
   const fields = [
 
@@ -439,11 +604,17 @@ function showNetworkDetails(row) {
           })
     ],
 
+    ['Hostname', getSystem(row.system_id)?.name || '—'],
+
+    ['Host ID', row.system_id || '—'],
+
     ['Process', row.process || '—'],
 
     ['PID', row.pid ?? '—'],
 
-    ['Protocol', row.proto || '—'],
+    ['Protocol', row.transportProtocol || '—'],
+
+    ['Address family', row.family || '—'],
 
     ['Destination IP', row.dest || '—'],
 
@@ -458,7 +629,6 @@ function showNetworkDetails(row) {
 
   box.textContent = '';
 
-
   fields.forEach(([key, value]) => {
 
     box.append(
@@ -472,12 +642,17 @@ function showNetworkDetails(row) {
   $('netDetailReason').textContent =
     row.reason || 'No reason provided by the backend.';
 
-
   $('netDetailRaw').textContent =
     row.raw
       ? JSON.stringify(row.raw, null, 2)
       : 'No raw data available.';
 
+
+  const blockButton = $('blockConnectionButton');
+
+  blockButton.disabled = false;
+
+  blockButton.textContent = 'Block the connection';
 
   openModal(netModal);
 
@@ -485,122 +660,378 @@ function showNetworkDetails(row) {
 
 
 /* ==========================================
-   HELPERS
+   ACTION 1: KILL PROCESS
 ========================================== */
 
-async function getJSON(url, opts = {}) {
+async function killSelectedProcess() {
 
-  const response = await fetch(BASE + url, {
+  const row = selectedProcessRow;
 
-    credentials: BASE ? 'include' : 'same-origin',
-
-    ...opts
-
-  });
-
-
-  if (!response.ok) {
-
-    throw new Error(
-      `HTTP ${response.status}: ${url}`
-    );
-
+  if (!row) {
+    alert('No process selected.');
+    return;
   }
 
+  const system = getSystem(row.system_id);
 
-  return response.json();
+  if (!system) {
+    alert('Target system not found.');
+    return;
+  }
+
+  const pid = Number(row.pid);
+
+  if (!Number.isSafeInteger(pid) || pid <= 1) {
+    alert('Invalid process ID.');
+    return;
+  }
+
+  if (
+    row.uid == null ||
+    row.start_time_ticks == null
+  ) {
+    alert(
+      'Process identity metadata is missing. ' +
+      'The backend must receive UID and process start-time ticks ' +
+      'before allowing termination.'
+    );
+    return;
+  }
+
+  const confirmed = confirm(
+    `Are you sure you want to terminate ` +
+    `${row.name} (PID ${pid}) on ${system.name}?`
+  );
+
+  if (!confirmed) return;
+
+  const button = $('killProcessButton');
+
+  button.disabled = true;
+
+  button.textContent = 'Terminating...';
+
+  try {
+
+    const result = await postAction(
+      API.killProcess,
+      {
+        action: 'kill_process',
+
+        hostname: system.name,
+
+        host_id: system.host_id,
+
+        pid,
+
+        ppid: Number(row.ppid),
+
+        uid: Number(row.uid),
+
+        start_time_ticks: Number(row.start_time_ticks),
+
+        event_id: row.id
+      }
+    );
+
+
+    // Remove the process log only after confirmed success.
+
+    procRows = procRows.filter(
+      item => item.id !== row.id
+    );
+
+    selectedProcessRow = null;
+
+
+    closeModal(reasonModal);
+
+    renderStats();
+
+    renderFloor();
+
+    renderTally();
+
+    if (openId) {
+      drawDetail();
+    }
+
+    alert(
+      result.message ||
+      'Process terminated successfully.'
+    );
+
+  } catch (error) {
+
+    console.error(
+      '[Prahari] Kill process failed:',
+      error
+    );
+
+    alert(
+      'Failed to terminate process: ' + error.message
+    );
+
+    button.disabled = false;
+
+    button.textContent = 'Kill the process';
+
+  }
 
 }
 
 
-const el = (tag, cls, text) => {
+/* ==========================================
+   ACTION 2: BLOCK NETWORK CONNECTION
+========================================== */
 
-  const element = document.createElement(tag);
+async function blockSelectedConnection() {
 
-  if (cls) {
-    element.className = cls;
+  const row = selectedNetworkRow;
+
+  if (!row) {
+    alert('No network connection selected.');
+    return;
   }
 
-  if (text != null) {
-    element.textContent = String(text);
+  const system = getSystem(row.system_id);
+
+  if (!system) {
+    alert('Target system not found.');
+    return;
   }
 
-  return element;
+  if (!row.dest || row.dest === '—') {
+    alert('Invalid destination IP.');
+    return;
+  }
 
-};
+  const port = Number(row.port);
 
+  if (
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535
+  ) {
+    alert('Invalid destination port.');
+    return;
+  }
 
-const verdictOf = row => {
-
-  const verdict = String(
-    row.verdict || ''
+  const protocol = String(
+    row.transportProtocol || ''
   ).toLowerCase();
 
-
-  if (VERDICTS.includes(verdict)) {
-    return verdict;
+  if (protocol !== 'tcp') {
+    alert(
+      'The current firewall script supports TCP only. ' +
+      'This connection cannot be blocked using that script.'
+    );
+    return;
   }
 
+  const confirmed = confirm(
+    `Block outgoing TCP connection to ` +
+    `${row.dest}:${port} on ${system.name}?`
+  );
 
-  if (row.status === 'blocked') {
-    return 'unsafe';
+  if (!confirmed) return;
+
+  const button = $('blockConnectionButton');
+
+  button.disabled = true;
+
+  button.textContent = 'Blocking...';
+
+  try {
+
+    const result = await postAction(
+      API.blockConnection,
+      {
+        action: 'block_connection',
+
+        hostname: system.name,
+
+        host_id: system.host_id,
+
+        pid: Number(row.pid),
+
+        destination_ip: row.dest,
+
+        destination_port: port,
+
+        protocol,
+
+        family: row.family || null,
+
+        event_id: row.id
+      }
+    );
+
+
+    selectedNetworkRow = null;
+
+    closeModal(netModal);
+
+    alert(
+      result.message ||
+      'Network connection blocked successfully.'
+    );
+
+  } catch (error) {
+
+    console.error(
+      '[Prahari] Block connection failed:',
+      error
+    );
+
+    alert(
+      'Failed to block connection: ' + error.message
+    );
+
+    button.disabled = false;
+
+    button.textContent = 'Block the connection';
+
   }
 
-  if (row.status === 'allowed') {
-    return 'safe';
-  }
-
-
-  return 'unknown';
-
-};
-
-
-const cmdOf = row =>
-  row.cmd || row.name || '';
-
-
-const STATUS = {
-
-  in_use: 'In use',
-
-  idle: 'Idle',
-
-  disconnected: 'Disconnected',
-
-  damaged: 'Damaged'
-
-};
-
-
-const fmtTime = value => {
-
-  const date = new Date(value);
-
-  return isNaN(date)
-
-    ? String(value)
-
-    : date.toLocaleTimeString([], {
-        hour12: false
-      });
-
-};
-
-
-const byTime = (a, b) =>
-  new Date(b.time) - new Date(a.time);
-
-
-const logsOf = (rows, id) =>
-  rows
-    .filter(row => row.system_id === id)
-    .sort(byTime);
-
+}
 
 
 /* ==========================================
-   DASHBOARD STATS
+   ACTION 3: FREEZE SYSTEM DEMO
+========================================== */
+
+async function freezeSystem(systemId, button) {
+
+  const system = getSystem(systemId);
+
+  if (!system) {
+    alert('System not found.');
+    return;
+  }
+
+  if (system.status === 'disconnected') {
+    alert('Cannot send action to a disconnected system.');
+    return;
+  }
+
+  const confirmed = confirm(
+    `Start the freeze demonstration on ${system.name}?`
+  );
+
+  if (!confirmed) return;
+
+  button.disabled = true;
+
+  button.textContent = 'Starting demo...';
+
+  try {
+
+    const result = await postAction(
+      API.freezeSystem,
+      {
+        action: 'freeze_demo',
+
+        hostname: system.name,
+
+        host_id: system.host_id
+      }
+    );
+
+    alert(
+      result.message ||
+      'Freeze demonstration started.'
+    );
+
+  } catch (error) {
+
+    console.error(
+      '[Prahari] Freeze demo failed:',
+      error
+    );
+
+    alert(
+      'Freeze demonstration failed: ' + error.message
+    );
+
+  } finally {
+
+    button.disabled = false;
+
+    button.textContent = 'Freeze the system';
+
+  }
+
+}
+
+
+/* ==========================================
+   UNSAFE PROCESS ALERT
+========================================== */
+
+function showUnsafeAlert(row) {
+
+  ensureSecurityUI();
+
+  const alertBox = el('section', 'security-alert');
+
+  alertBox.setAttribute('role', 'alert');
+
+  const heading = el(
+    'strong',
+    null,
+    '⚠ UNSAFE PROCESS DETECTED'
+  );
+
+  const description = el(
+    'p',
+    null,
+    `${row.name || 'Unknown process'} (PID ${row.pid ?? '—'})`
+  );
+
+  const reason = el(
+    'p',
+    null,
+    row.reason || 'No detection reason provided by the backend.'
+  );
+
+  const details = el(
+    'button',
+    'security-alert-details',
+    'View details'
+  );
+
+  details.type = 'button';
+
+  details.onclick = () => showProcessReason(row);
+
+  const dismiss = el(
+    'button',
+    'security-alert-close',
+    'Dismiss'
+  );
+
+  dismiss.type = 'button';
+
+  dismiss.onclick = () => alertBox.remove();
+
+  alertBox.append(
+    heading,
+    description,
+    reason,
+    details,
+    dismiss
+  );
+
+  alertHost.prepend(alertBox);
+
+  window.setTimeout(() => alertBox.remove(), 10000);
+
+}
+
+
+/* ==========================================
+   DASHBOARD STATISTICS
 ========================================== */
 
 function renderStats() {
@@ -610,18 +1041,14 @@ function renderStats() {
       system => system.status === status
     ).length;
 
-
   $('nTotal').textContent =
     systems.length - count('disconnected');
-
 
   $('nUse').textContent =
     count('in_use');
 
-
   $('nOff').textContent =
     count('disconnected');
-
 
   $('nBad').textContent =
     count('damaged');
@@ -629,17 +1056,17 @@ function renderStats() {
 }
 
 
-/* ---------- ADMIN PROFILE ---------- */
+/* ==========================================
+   ADMIN PROFILE
+========================================== */
 
 function renderAdmin(profile = {}) {
 
   $('aName').textContent =
     profile.name || 'Admin';
 
-
   $('aRole').textContent =
     profile.role || '';
-
 
   $('avatar').textContent =
     (profile.name || 'A')
@@ -647,28 +1074,19 @@ function renderAdmin(profile = {}) {
       .charAt(0)
       .toUpperCase();
 
-
   const data = $('aData');
 
   data.textContent = '';
 
-
   [
-
     ['Email', profile.email],
-
     ['Organization', profile.org],
-
     ['Joined', profile.joined]
-
   ].forEach(([key, value]) => {
 
     data.append(
-
       el('dt', null, key),
-
       el('dd', null, value || '—')
-
     );
 
   });
@@ -676,7 +1094,9 @@ function renderAdmin(profile = {}) {
 }
 
 
-/* ---------- VERDICT COUNTS ---------- */
+/* ==========================================
+   VERDICT COUNTS
+========================================== */
 
 function verdictCounts() {
 
@@ -684,81 +1104,54 @@ function verdictCounts() {
     systems.map(system => system.id)
   );
 
-
   const counts = {
-
     safe: 0,
-
     unsafe: 0,
-
     unknown: 0,
-
     partial: 0
-
   };
-
 
   procRows.concat(netRows).forEach(row => {
 
     if (ids.has(row.system_id)) {
-
       counts[verdictOf(row)]++;
-
     }
 
   });
-
 
   return counts;
 
 }
 
 
-/* ---------- TALLY ---------- */
+/* ==========================================
+   TALLY
+========================================== */
 
 function fillTally(box, counts) {
 
   const total = Math.max(
-
     1,
-
     VERDICTS.reduce(
-
       (sum, verdict) =>
         sum + (counts[verdict] || 0),
-
       0
-
     )
-
   );
-
 
   if (!box.children.length) {
 
     VERDICTS.forEach(verdict => {
 
-      const row = el(
-        'div',
-        't ' + verdict
-      );
-
+      const row = el('div', 't ' + verdict);
 
       row.append(
-
         el('span', null, verdict),
-
         el('div', 'tr'),
-
         el('em', null, '0')
-
       );
 
-
-      row.children[1].appendChild(
-        el('i')
-      );
-
+      row.children[1].appendChild(el('i'));
 
       box.appendChild(row);
 
@@ -766,20 +1159,16 @@ function fillTally(box, counts) {
 
   }
 
-
   VERDICTS.forEach((verdict, index) => {
 
     const row = box.children[index];
 
     const count = counts[verdict] || 0;
 
-
     row.querySelector('i').style.width =
       (count / total * 100) + '%';
 
-
-    row.querySelector('em').textContent =
-      count;
+    row.querySelector('em').textContent = count;
 
   });
 
@@ -796,7 +1185,6 @@ function renderTally() {
 }
 
 
-
 /* ==========================================
    SUMMARY WINDOW
 ========================================== */
@@ -808,31 +1196,22 @@ function computeSummary() {
       system => system.status === status
     ).length;
 
-
   const ids = new Set(
     systems.map(system => system.id)
   );
 
-
-  const processes = procRows.filter(row =>
-    ids.has(row.system_id)
+  const processes = procRows.filter(
+    row => ids.has(row.system_id)
   );
 
-
-  const connections = netRows.filter(row =>
-    ids.has(row.system_id)
+  const connections = netRows.filter(
+    row => ids.has(row.system_id)
   );
-
 
   const times = processes
     .concat(connections)
-
-    .map(row =>
-      new Date(row.time).getTime()
-    )
-
+    .map(row => new Date(row.time).getTime())
     .filter(time => !isNaN(time));
-
 
   return {
 
@@ -863,93 +1242,59 @@ function computeSummary() {
 
 function renderSummary(data) {
 
-  const num = value =>
-    Number(value) || 0;
-
+  const num = value => Number(value) || 0;
 
   const total = num(data.total);
 
   const disconnected = num(data.disconnected);
 
-
   const figures = $('sumFigs');
 
   figures.textContent = '';
 
-
   [
-
     ['Total systems', total, 'c'],
-
     ['Connected', total - disconnected, 'c'],
-
     ['In use', num(data.in_use), 'g'],
-
     ['Idle', num(data.idle), 'i'],
-
     ['Disconnected', disconnected, 'm'],
-
     ['Damaged', num(data.damaged), 'r']
-
   ].forEach(([label, value, cls]) => {
 
-    const figure = el(
-      'div',
-      'fig ' + cls
-    );
-
+    const figure = el('div', 'fig ' + cls);
 
     figure.append(
-
       el('b', null, value),
-
       el('span', null, label)
-
     );
-
 
     figures.appendChild(figure);
 
   });
-
 
   fillTally(
     $('sumTally'),
     data.verdicts || {}
   );
 
-
   const meta = $('sumMeta');
 
   meta.textContent = '';
 
-
   [
-
     ['Process records', num(data.processes)],
-
     ['Network records', num(data.connections)],
-
     [
-
       'Last activity',
-
       data.last_seen
-
         ? new Date(data.last_seen).toLocaleString()
-
         : '—'
-
     ]
-
   ].forEach(([key, value]) => {
 
     meta.append(
-
       el('dt', null, key),
-
       el('dd', null, value)
-
     );
 
   });
@@ -963,16 +1308,18 @@ async function openSummary() {
 
   openModal($('sumModal'));
 
-
   try {
 
     renderSummary(
       await getJSON(API.summary)
     );
 
-  } catch (_) {
+  } catch (error) {
 
-    // Keep locally calculated summary.
+    console.warn(
+      '[Prahari] Summary API unavailable:',
+      error
+    );
 
   }
 
@@ -993,17 +1340,25 @@ $('sumAdd').onclick = () => {
 };
 
 
-
 /* ==========================================
    COMPUTER TILES
 ========================================== */
 
 function buildTile(system) {
 
+  const wrapper = el('div', 'system-unit');
+
+  wrapper.style.display = 'flex';
+
+  wrapper.style.flexDirection = 'column';
+
+  wrapper.style.alignItems = 'center';
+
+  wrapper.style.gap = '10px';
+
   const button = el('button', 'mon');
 
   button.type = 'button';
-
 
   const tilt = el('div', 'tilt');
 
@@ -1011,19 +1366,13 @@ function buildTile(system) {
 
   const screen = el('div', 'screen');
 
-
   const bar = el('div', 'case-bar');
 
   bar.append(
-
     el('i', 'led'),
-
     el('span', 'slot'),
-
     el('span', 'slot')
-
   );
-
 
   bezel.append(screen, bar);
 
@@ -1033,51 +1382,30 @@ function buildTile(system) {
     el('div', 'foot')
   );
 
-
   button.append(
     tilt,
     el('span', 'mname')
   );
 
-
   button.addEventListener('click', () => {
-
     openSystem(button.dataset.id);
-
   });
-
 
   button.addEventListener('mousemove', event => {
 
     const rect = button.getBoundingClientRect();
 
-
     tilt.style.setProperty(
-
       '--ry',
-
-      (
-        (event.clientX - rect.left) /
-        rect.width - 0.5
-      ) * 14 + 'deg'
-
+      ((event.clientX - rect.left) / rect.width - 0.5) * 14 + 'deg'
     );
 
-
     tilt.style.setProperty(
-
       '--rx',
-
-      (
-        0.5 -
-        (event.clientY - rect.top) /
-        rect.height
-      ) * 10 + 'deg'
-
+      (0.5 - (event.clientY - rect.top) / rect.height) * 10 + 'deg'
     );
 
   });
-
 
   button.addEventListener('mouseleave', () => {
 
@@ -1088,7 +1416,40 @@ function buildTile(system) {
   });
 
 
-  return button;
+  // FREEZE SYSTEM BUTTON
+
+  const freezeButton = el(
+    'button',
+    'freeze-system-btn',
+    'Freeze the system'
+  );
+
+  freezeButton.type = 'button';
+
+  freezeButton.style.background = '#92400e';
+
+  freezeButton.style.color = '#ffffff';
+
+  freezeButton.style.border = 'none';
+
+  freezeButton.style.borderRadius = '6px';
+
+  freezeButton.style.padding = '9px 14px';
+
+  freezeButton.style.cursor = 'pointer';
+
+  freezeButton.onclick = event => {
+
+    event.stopPropagation();
+
+    freezeSystem(system.id, freezeButton);
+
+  };
+
+
+  wrapper.append(button, freezeButton);
+
+  return wrapper;
 
 }
 
@@ -1097,17 +1458,15 @@ function renderFloor() {
 
   const floor = $('floor');
 
-
   const keep = new Set(
     systems.map(system => system.id)
   );
 
-
-  tiles.forEach((tile, id) => {
+  tiles.forEach((wrapper, id) => {
 
     if (!keep.has(id)) {
 
-      tile.remove();
+      wrapper.remove();
 
       tiles.delete(id);
 
@@ -1115,58 +1474,49 @@ function renderFloor() {
 
   });
 
-
   systems.forEach(system => {
 
-    let tile = tiles.get(system.id);
+    let wrapper = tiles.get(system.id);
 
+    if (!wrapper) {
 
-    if (!tile) {
+      wrapper = buildTile(system);
 
-      tile = buildTile(system);
-
-      tiles.set(system.id, tile);
+      tiles.set(system.id, wrapper);
 
     }
 
+    wrapper.dataset.id = system.id;
+
+    const tile = wrapper.querySelector('.mon');
 
     tile.dataset.id = system.id;
 
-
     tile.className =
-
       'mon ' +
-
       (
-
         system.status === 'in_use'
-
           ? ''
-
           : system.status === 'idle'
-
             ? 'idle'
-
             : system.status
-
       );
 
-
     tile.setAttribute(
-
       'aria-label',
-
       'Open ' + system.name + ' logs'
-
     );
-
 
     tile.querySelector('.mname').textContent =
       system.name;
 
+    const freezeButton =
+      wrapper.querySelector('.freeze-system-btn');
 
-    floor.appendChild(tile);
+    freezeButton.disabled =
+      system.status === 'disconnected';
 
+    floor.appendChild(wrapper);
 
     drawScreen(
       tile.querySelector('.screen'),
@@ -1175,24 +1525,24 @@ function renderFloor() {
 
   });
 
-
   floor.appendChild(addTile());
 
 }
 
 
-let addEl;
+/* ==========================================
+   ADD SYSTEM TILE
+========================================== */
 
+let addEl;
 
 function addTile() {
 
   if (addEl) return addEl;
 
-
   addEl = el('button', 'mon add');
 
   addEl.type = 'button';
-
 
   const tilt = el('div', 'tilt');
 
@@ -1200,11 +1550,9 @@ function addTile() {
 
   const screen = el('div', 'screen');
 
-
   screen.appendChild(
     el('span', 'plus', '+')
   );
-
 
   const bar = el('div', 'case-bar');
 
@@ -1212,7 +1560,6 @@ function addTile() {
     el('i', 'led'),
     el('span', 'slot')
   );
-
 
   bezel.append(screen, bar);
 
@@ -1222,19 +1569,10 @@ function addTile() {
     el('div', 'foot')
   );
 
-
   addEl.append(
-
     tilt,
-
-    el(
-      'span',
-      'mname',
-      'Connect a system'
-    )
-
+    el('span', 'mname', 'Connect a system')
   );
-
 
   addEl.onclick = () => {
 
@@ -1244,11 +1582,14 @@ function addTile() {
 
   };
 
-
   return addEl;
 
 }
 
+
+/* ==========================================
+   DRAW SYSTEM MONITOR
+========================================== */
 
 function drawScreen(screen, system) {
 
@@ -1257,24 +1598,17 @@ function drawScreen(screen, system) {
     system.id
   ).slice(0, 8);
 
-
   const signature =
-
     system.status + '|' +
-
     rows.map(row =>
-
       row.pid +
       cmdOf(row) +
       verdictOf(row)
-
     ).join(',');
-
 
   if (screen.dataset.sig === signature) {
     return;
   }
-
 
   const previousTop = screen.dataset.top;
 
@@ -1282,35 +1616,22 @@ function drawScreen(screen, system) {
 
   screen.textContent = '';
 
-
   if (
-
     system.status === 'disconnected' ||
-
     system.status === 'damaged'
-
   ) {
 
     screen.appendChild(
-
       el(
-
         'div',
-
         'off-msg',
-
         system.status === 'damaged'
-
           ? 'SYSTEM FAULT'
-
           : 'NO SIGNAL'
-
       )
-
     );
 
   }
-
 
   rows.forEach((row, index) => {
 
@@ -1319,67 +1640,40 @@ function drawScreen(screen, system) {
       'ln ' + verdictOf(row)
     );
 
-
     line.append(
-
       el('i'),
-
       el('span', null, cmdOf(row))
-
     );
 
-
     if (
-
       !first &&
-
       index === 0 &&
-
       previousTop !== row.pid + cmdOf(row)
-
     ) {
-
       line.classList.add('fresh');
-
     }
-
 
     screen.appendChild(line);
 
   });
 
-
   if (
-
     !rows.length &&
-
     system.status !== 'disconnected' &&
-
     system.status !== 'damaged'
-
   ) {
 
     screen.appendChild(
-
-      el(
-        'div',
-        'off-msg',
-        'AWAITING DATA'
-      )
-
+      el('div', 'off-msg', 'AWAITING DATA')
     );
 
   }
 
-
   screen.dataset.top = rows[0]
-
     ? rows[0].pid + cmdOf(rows[0])
-
     : '';
 
 }
-
 
 
 /* ==========================================
@@ -1394,28 +1688,17 @@ function openSystem(id) {
 
   vfilter = 'all';
 
-
-  const system = systems.find(
-    item => item.id === id
-  );
-
+  const system = getSystem(id);
 
   $('sTitle').textContent =
-
     (system ? system.name : id) +
-
     (
-
       system
-
         ? ' — ' + (
             STATUS[system.status] || system.status
           )
-
         : ''
-
     );
-
 
   document.querySelectorAll('.tab').forEach(button => {
 
@@ -1425,7 +1708,6 @@ function openSystem(id) {
     );
 
   });
-
 
   drawDetail();
 
@@ -1438,76 +1720,40 @@ function drawDetail() {
 
   if (!openId) return;
 
-
   const rows = logsOf(
-
     tab === 'proc'
       ? procRows
       : netRows,
-
     openId
-
   );
 
-
   const counts = {
-
     all: rows.length,
-
     safe: 0,
-
     unsafe: 0,
-
     unknown: 0,
-
     partial: 0
-
   };
 
-
   rows.forEach(row => {
-
     counts[verdictOf(row)]++;
-
   });
-
 
   const chips = $('chips');
 
   chips.textContent = '';
 
-
   ['all', ...VERDICTS].forEach(verdict => {
 
     const button = el(
-
       'button',
-
       'chip ' +
-
-      (
-
-        verdict === 'all'
-          ? ''
-          : verdict
-
-      ) +
-
-      (
-
-        vfilter === verdict
-          ? ' on'
-          : ''
-
-      ),
-
+      (verdict === 'all' ? '' : verdict) +
+      (vfilter === verdict ? ' on' : ''),
       verdict + ' · ' + counts[verdict]
-
     );
 
-
     button.type = 'button';
-
 
     button.onclick = () => {
 
@@ -1516,7 +1762,6 @@ function drawDetail() {
       drawDetail();
 
     };
-
 
     chips.appendChild(button);
 
@@ -1527,51 +1772,29 @@ function drawDetail() {
 
   head.textContent = '';
 
-
   const header = el('tr');
 
-
   const columns = tab === 'proc'
-
     ? [
-
         'Time',
-
         'PID',
-
         'Process',
-
         'Command',
-
         'Verdict'
-
       ]
-
     : [
-
         'Time',
-
         'Proto',
-
         'Destination',
-
         'Port',
-
+        'PID',
         'Process',
-
         'Verdict'
-
       ];
 
-
   columns.forEach(column => {
-
-    header.appendChild(
-      el('th', null, column)
-    );
-
+    header.appendChild(el('th', null, column));
   });
-
 
   head.appendChild(header);
 
@@ -1580,17 +1803,11 @@ function drawDetail() {
 
   body.textContent = '';
 
-
   const shown = rows
-
     .filter(row =>
-
       vfilter === 'all' ||
-
       verdictOf(row) === vfilter
-
     )
-
     .slice(0, 300);
 
 
@@ -1600,15 +1817,8 @@ function drawDetail() {
 
     const verdict = verdictOf(row);
 
-
     tr.appendChild(
-
-      el(
-        'td',
-        'nw',
-        fmtTime(row.time)
-      )
-
+      el('td', 'nw', fmtTime(row.time))
     );
 
 
@@ -1618,79 +1828,51 @@ function drawDetail() {
         el('td', 'nw', row.pid)
       );
 
-
       const processCell = el('td', 'nw');
 
-
       const processLink = el(
-
         'button',
-
         'process-name-link',
-
         row.name || 'unknown'
-
       );
-
 
       processLink.type = 'button';
 
       processLink.title =
         'View process status and reason';
 
-
       processLink.onclick = () =>
         showProcessReason(row);
-
 
       processCell.appendChild(processLink);
 
       tr.appendChild(processCell);
 
-
       tr.appendChild(
-
-        el(
-          'td',
-          'cmd',
-          row.cmd || row.name
-        )
-
+        el('td', 'cmd', row.cmd || row.name)
       );
 
     } else {
 
       tr.appendChild(
-
-        el(
-          'td',
-          'nw',
-          row.proto || '—'
-        )
-
+        el('td', 'nw', row.proto || '—')
       );
-
 
       tr.appendChild(
         el('td', 'nw', row.dest)
       );
 
-
       tr.appendChild(
         el('td', 'nw', row.port)
       );
 
-
       tr.appendChild(
-
-        el(
-          'td',
-          'nw',
-          row.process || '—'
-        )
-
+        el('td', 'nw', row.pid ?? '—')
       );
 
+      tr.appendChild(
+        el('td', 'nw', row.process || '—')
+      );
 
       tr.classList.add('row-click');
 
@@ -1698,10 +1880,8 @@ function drawDetail() {
 
       tr.title = 'View connection details';
 
-
       tr.onclick = () =>
         showNetworkDetails(row);
-
 
       tr.onkeydown = event => {
 
@@ -1723,17 +1903,9 @@ function drawDetail() {
 
     const td = el('td');
 
-
     td.appendChild(
-
-      el(
-        'span',
-        'tag ' + verdict,
-        verdict
-      )
-
+      el('span', 'tag ' + verdict, verdict)
     );
-
 
     tr.appendChild(td);
 
@@ -1741,11 +1913,14 @@ function drawDetail() {
 
   });
 
-
   $('sEmpty').hidden = shown.length > 0;
 
 }
 
+
+/* ==========================================
+   SYSTEM TABS
+========================================== */
 
 document.querySelectorAll('.tab').forEach(button => {
 
@@ -1754,7 +1929,6 @@ document.querySelectorAll('.tab').forEach(button => {
     tab = button.dataset.tab;
 
     vfilter = 'all';
-
 
     document.querySelectorAll('.tab').forEach(item => {
 
@@ -1765,13 +1939,11 @@ document.querySelectorAll('.tab').forEach(button => {
 
     });
 
-
     drawDetail();
 
   };
 
 });
-
 
 
 /* ==========================================
@@ -1780,22 +1952,17 @@ document.querySelectorAll('.tab').forEach(button => {
 
 let lastFocus;
 
-
 function openModal(modal) {
 
   lastFocus = document.activeElement;
 
   modal.hidden = false;
 
-
   const focusTarget =
     modal.querySelector('input,.x');
 
-
   if (focusTarget) {
-
     focusTarget.focus();
-
   }
 
 }
@@ -1805,18 +1972,20 @@ function closeModal(modal) {
 
   modal.hidden = true;
 
-
   if (modal.id === 'sysModal') {
-
     openId = null;
-
   }
 
+  if (modal.id === 'processReasonModal') {
+    selectedProcessRow = null;
+  }
+
+  if (modal.id === 'networkDetailModal') {
+    selectedNetworkRow = null;
+  }
 
   if (lastFocus && lastFocus.focus) {
-
     lastFocus.focus();
-
   }
 
 }
@@ -1827,15 +1996,10 @@ document.querySelectorAll('.modal').forEach(modal => {
   modal.addEventListener('click', event => {
 
     if (
-
       event.target === modal ||
-
       event.target.hasAttribute('data-close')
-
     ) {
-
       closeModal(modal);
-
     }
 
   });
@@ -1848,9 +2012,7 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
 
     document
-
       .querySelectorAll('.modal:not([hidden])')
-
       .forEach(closeModal);
 
   }
@@ -1858,37 +2020,44 @@ document.addEventListener('keydown', event => {
 });
 
 
-
 /* ==========================================
    CONNECT SYSTEM
 ========================================== */
 
 function resetConnect() {
+
   $('sysName').value = '';
+
   $('cErr').hidden = true;
+
 }
 
 
 $('makeCmd').onclick = () => {
 
   const name = $('sysName').value.trim();
+
   const error = $('cErr');
 
   error.hidden = true;
 
   if (!name) {
-    error.textContent = 'Enter a name for the system.';
+
+    error.textContent =
+      'Enter a name for the system.';
+
     error.hidden = false;
+
     return;
+
   }
 
-  // Close Connect System modal
   closeModal($('connectModal'));
 
-  // Open Administrator Contact modal
   openModal($('adminContactModal'));
 
 };
+
 
 /* ==========================================
    LIVE STATUS
@@ -1898,17 +2067,11 @@ function setLive(ok) {
 
   const live = $('live');
 
-
   live.textContent = demo
-
     ? 'Demo system / API mode'
-
     : ok
-
       ? 'Live'
-
       : 'Reconnecting';
-
 
   live.classList.toggle(
     'down',
@@ -1918,25 +2081,13 @@ function setLive(ok) {
 }
 
 
-
 /* ==========================================
-   BATCH SYSTEM IDENTIFICATION
+   SYSTEM IDENTIFICATION
 ========================================== */
-
-/*
-   host_id = unique machine identity
-   hostname = dashboard display name
-
-   Same hostname with different host_id
-   will be treated as separate machines.
-*/
 
 function getOrCreateSystem(hostname, hostId) {
 
-  if (
-    !hostname ||
-    !hostId
-  ) {
+  if (!hostname || !hostId) {
 
     throw new Error(
       'Batch is missing hostname or host_id'
@@ -1944,16 +2095,13 @@ function getOrCreateSystem(hostname, hostId) {
 
   }
 
-
   const id = String(hostId);
 
   const name = String(hostname);
 
-
   let system = systems.find(
     item => item.id === id
   );
-
 
   if (!system) {
 
@@ -1969,7 +2117,6 @@ function getOrCreateSystem(hostname, hostId) {
 
     };
 
-
     systems.push(system);
 
   } else {
@@ -1980,11 +2127,9 @@ function getOrCreateSystem(hostname, hostId) {
 
   }
 
-
   return id;
 
 }
-
 
 
 /* ==========================================
@@ -2000,21 +2145,13 @@ function parseBatchLog(item, kind) {
         ? JSON.parse(item)
         : item;
 
-
     if (
-
       !payload ||
-
       typeof payload !== 'object' ||
-
       Array.isArray(payload)
-
     ) {
-
       throw new Error('Invalid event payload');
-
     }
-
 
     return payload;
 
@@ -2026,7 +2163,6 @@ function parseBatchLog(item, kind) {
       item
     );
 
-
     throw error;
 
   }
@@ -2037,26 +2173,17 @@ function parseBatchLog(item, kind) {
 function eventTimestamp(payload) {
 
   const value = Number(
-
     payload.timestamp_unix ??
-
     payload.timestamp ??
-
     payload.time
-
   );
 
-
   return Number.isFinite(value) && value > 0
-
     ? new Date(
-
         value < 1e12
           ? value * 1000
           : value
-
       ).toISOString()
-
     : new Date().toISOString();
 
 }
@@ -2065,35 +2192,26 @@ function eventTimestamp(payload) {
 function normalizedVerdict(payload) {
 
   const value = String(
-
     payload.status ||
-
     payload.verdict ||
-
     ''
-
   ).toLowerCase();
-
 
   if (VERDICTS.includes(value)) {
     return value;
   }
 
-
   if (value === 'blocked') {
     return 'unsafe';
   }
-
 
   if (value === 'allowed') {
     return 'safe';
   }
 
-
   return 'unknown';
 
 }
-
 
 
 /* ==========================================
@@ -2110,36 +2228,26 @@ function processProcessLogs(batch, systemId) {
 
   }
 
-
   batch.process_logs.forEach((item, index) => {
 
     const eventId =
-      `${batch.batch_id}:process:${index}`;
-
+      `${systemId}:${batch.batch_id}:process:${index}`;
 
     if (seenEventIds.has(eventId)) {
       return;
     }
 
-
     const payload =
       parseBatchLog(item, 'process');
-
 
     const status =
       normalizedVerdict(payload);
 
-
     const name = String(
-
       payload.comm ||
-
       payload.name ||
-
       'unknown'
-
     );
-
 
     const row = {
 
@@ -2152,6 +2260,13 @@ function processProcessLogs(batch, systemId) {
       pid: payload.pid ?? '—',
 
       ppid: payload.ppid ?? '—',
+
+      uid: payload.uid ?? null,
+
+      start_time_ticks:
+        payload.start_time_ticks ??
+        payload.start_ticks ??
+        null,
 
       name,
 
@@ -2166,42 +2281,29 @@ function processProcessLogs(batch, systemId) {
       verdict: status,
 
       reason: String(
-
         payload.reason ||
-
         'No reason provided by the backend.'
-
       )
 
     };
 
-
     procRows.push(row);
 
-
     if (status === 'unsafe') {
-
       showUnsafeAlert(row);
-
     }
 
-
-    seenEventIds.add(eventId);
+    rememberEventId(eventId);
 
   });
 
-
   procRows.sort(byTime);
 
-
   if (procRows.length > 2000) {
-
     procRows = procRows.slice(0, 2000);
-
   }
 
 }
-
 
 
 /* ==========================================
@@ -2218,21 +2320,17 @@ function processNetworkLogs(batch, systemId) {
 
   }
 
-
   batch.network_logs.forEach((item, index) => {
 
     const eventId =
-      `${batch.batch_id}:network:${index}`;
-
+      `${systemId}:${batch.batch_id}:network:${index}`;
 
     if (seenEventIds.has(eventId)) {
       return;
     }
 
-
     const payload =
       parseBatchLog(item, 'network');
-
 
     const row = {
 
@@ -2242,92 +2340,74 @@ function processNetworkLogs(batch, systemId) {
 
       system_id: systemId,
 
-
       proto: String(
-
         payload.protocol ||
-
         payload.family ||
-
         '—'
-
       ),
 
+      transportProtocol: String(
+        payload.transport_protocol ||
+        payload.l4_protocol ||
+        (
+          ['tcp', 'udp'].includes(
+            String(payload.protocol || '').toLowerCase()
+          )
+            ? payload.protocol
+            : ''
+        )
+      ).toLowerCase(),
+
+      family: String(
+        payload.family ||
+        '—'
+      ),
 
       dest: String(
-
         payload.destination_ip ||
-
         payload.dest ||
-
         payload.remote_ip ||
-
         '—'
-
       ),
-
 
       port:
-
         payload.destination_port ??
-
         payload.port ??
-
         '—',
 
-
       process: String(
-
         payload.comm ||
-
         payload.process ||
-
         payload.name ||
-
         '—'
-
       ),
-
 
       pid: payload.pid ?? '—',
 
-
       verdict: normalizedVerdict(payload),
 
-
       reason: String(
-
         payload.reason ||
-
         'No reason provided by the backend.'
-
       ),
-
 
       raw: payload
 
     };
 
-
     netRows.push(row);
 
-
-    seenEventIds.add(eventId);
+    rememberEventId(eventId);
 
   });
 
-
   netRows.sort(byTime);
 
-
   if (netRows.length > 2000) {
-
     netRows = netRows.slice(0, 2000);
-
   }
 
 }
-
 
 
 /* ==========================================
@@ -2340,11 +2420,8 @@ function processCompleteBatch(batch) {
     !batch ||
     typeof batch !== 'object'
   ) {
-
     throw new Error('Invalid batch received');
-
   }
-
 
   if (!batch.batch_id) {
 
@@ -2354,98 +2431,30 @@ function processCompleteBatch(batch) {
 
   }
 
-
   const systemId = getOrCreateSystem(
-
     batch.hostname,
-
     batch.host_id
-
   );
-
 
   processProcessLogs(
     batch,
     systemId
   );
 
-
   processNetworkLogs(
     batch,
     systemId
   );
 
-
   console.log(
-
     `[Prahari] Batch processed | ` +
-
     `Hostname: ${batch.hostname} | ` +
-
     `Host ID: ${batch.host_id} | ` +
-
     `Process: ${batch.process_count} | ` +
-
     `Network: ${batch.network_count}`
-
   );
 
 }
-
-
-
-/* ==========================================
-   GET ONE COMPLETE BATCH
-========================================== */
-
-async function fetchEventBatch() {
-
-  const response = await getJSON(
-    API.eventsNext
-  );
-
-
-  if (
-    !response ||
-    response.success !== true
-  ) {
-
-    throw new Error(
-      'Batch API returned unsuccessful response'
-    );
-
-  }
-
-
-  if (response.available !== true) {
-
-    return null;
-
-  }
-
-
-  if (
-    !response.redis_id ||
-    !response.batch
-  ) {
-
-    throw new Error(
-      'Invalid batch response from backend'
-    );
-
-  }
-
-
-  return {
-
-    redisId: response.redis_id,
-
-    batch: response.batch
-
-  };
-
-}
-
 
 
 /* ==========================================
@@ -2455,178 +2464,314 @@ async function fetchEventBatch() {
 async function acknowledgeBatch(redisId) {
 
   const response = await getJSON(
-
     API.eventsAck,
-
     {
-
       method: 'POST',
 
       headers: {
-
         'Content-Type': 'application/json'
-
       },
 
       body: JSON.stringify({
-
         redis_id: redisId
-
       })
-
     }
-
   );
 
-
   if (
-
     response.success !== true ||
-
     response.acknowledged !== true
-
   ) {
-
     throw new Error(
       'Batch acknowledgement was unsuccessful'
     );
-
   }
 
-
   console.log(
-
     `[Prahari] Batch acknowledged and deleted: ${redisId}`
-
   );
 
 }
 
 
-
 /* ==========================================
-   MAIN REFRESH LOOP
+   WEBSOCKET CLIENT
 ========================================== */
 
-async function refresh() {
+let praHariSocket = null;
 
-  if (refreshInProgress) {
+let reconnectDelay = 1000;
+
+const MAX_RECONNECT_DELAY = 10000;
+
+let reconnectTimer = null;
+
+let reconnectScheduled = false;
+
+let incomingBatchQueue = [];
+
+let renderScheduled = false;
+
+
+/* ==========================================
+   INCOMING BATCH
+========================================== */
+
+function handleIncomingBatch(message) {
+
+  if (!message || typeof message !== 'object') {
     return;
   }
 
+  if (message.type !== 'batch') {
+    return;
+  }
 
-  refreshInProgress = true;
+  if (!message.batch) {
+
+    console.warn(
+      '[Prahari WS] Empty batch received'
+    );
+
+    return;
+
+  }
+
+  incomingBatchQueue.push(message.batch);
+
+  scheduleBatchRendering();
+
+}
 
 
-  try {
+/* ==========================================
+   BATCH RENDER SCHEDULER
+========================================== */
+
+function scheduleBatchRendering() {
+
+  if (renderScheduled) {
+    return;
+  }
+
+  renderScheduled = true;
+
+  requestAnimationFrame(() => {
+
+    renderScheduled = false;
+
+    if (incomingBatchQueue.length === 0) {
+      return;
+    }
+
+    const batches = incomingBatchQueue.splice(
+      0,
+      incomingBatchQueue.length
+    );
+
+    let processed = 0;
+
+    for (const batch of batches) {
+
+      try {
+
+        processCompleteBatch(batch);
+
+        processed++;
+
+      } catch (error) {
+
+        console.error(
+          '[Prahari WS] Batch processing failed:',
+          error,
+          batch
+        );
+
+      }
+
+    }
+
+    if (processed > 0) {
+
+      demo = false;
+
+      first = false;
+
+      renderStats();
+
+      renderFloor();
+
+      renderTally();
+
+      if (openId) {
+        drawDetail();
+      }
+
+      console.log(
+        `[Prahari WS] Rendered ${processed} batch(es)`
+      );
+
+    }
+
+    if (incomingBatchQueue.length > 0) {
+      scheduleBatchRendering();
+    }
+
+  });
+
+}
+
+
+/* ==========================================
+   CONNECT WEBSOCKET
+========================================== */
+
+function connectPrahariWebSocket() {
+
+  if (
+    praHariSocket &&
+    (
+      praHariSocket.readyState === WebSocket.OPEN ||
+      praHariSocket.readyState === WebSocket.CONNECTING
+    )
+  ) {
+    return;
+  }
+
+  const protocol =
+    location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+  const wsURL =
+    `${protocol}//${location.host}/ws`;
+
+  console.log(
+    '[Prahari WS] Connecting:',
+    wsURL
+  );
+
+  const socket = new WebSocket(wsURL);
+
+  praHariSocket = socket;
+
+
+  /* ---------- CONNECTION OPEN ---------- */
+
+  socket.onopen = () => {
+
+    if (praHariSocket !== socket) {
+      return;
+    }
+
+    console.log(
+      '[Prahari WS] Connected successfully'
+    );
+
+    reconnectDelay = 1000;
+
+    reconnectScheduled = false;
 
     demo = false;
 
     setLive(true);
 
-
-    /*
-       API CALL 1:
-       Frontend requests one complete batch.
-    */
-
-    const delivery =
-      await fetchEventBatch();
+  };
 
 
-    if (delivery) {
+  /* ---------- RECEIVE MESSAGE ---------- */
 
-      /*
-         Process both process and network
-         logs from the same batch.
-      */
+  socket.onmessage = event => {
 
-      processCompleteBatch(
-        delivery.batch
-      );
+    if (praHariSocket !== socket) {
+      return;
+    }
 
+    try {
 
-      /*
-         Update dashboard after processing.
-      */
+      const message = JSON.parse(event.data);
 
-      renderStats();
+      handleIncomingBatch(message);
 
-      renderFloor();
+    } catch (error) {
 
-      renderTally();
-
-
-      if (openId) {
-
-        drawDetail();
-
-      }
-
-
-      first = false;
-
-
-      /*
-         API CALL 2:
-         Send Redis ID for acknowledgement.
-
-         This happens only after successful
-         batch processing and rendering.
-      */
-
-      await acknowledgeBatch(
-        delivery.redisId
-      );
-
-
-    } else {
-
-      /*
-         No batch available.
-         Only GET was performed.
-      */
-
-      renderStats();
-
-      renderFloor();
-
-      renderTally();
-
-
-      if (openId) {
-
-        drawDetail();
-
-      }
-
-
-      console.log(
-        '[Prahari] No new batch available'
+      console.error(
+        '[Prahari WS] Invalid message received:',
+        error
       );
 
     }
 
+  };
 
-  } catch (error) {
+
+  /* ---------- CONNECTION ERROR ---------- */
+
+  socket.onerror = error => {
 
     console.error(
-      '[Prahari] Refresh failed:',
+      '[Prahari WS] Connection error:',
       error
     );
 
+  };
+
+
+  /* ---------- CONNECTION CLOSED ---------- */
+
+  socket.onclose = event => {
+
+    if (praHariSocket !== socket) {
+      return;
+    }
+
+    console.warn(
+      '[Prahari WS] Disconnected:',
+      event.code,
+      event.reason
+    );
+
+    praHariSocket = null;
 
     setLive(false);
 
+    scheduleReconnect();
 
-  } finally {
-
-    refreshInProgress = false;
-
-  }
+  };
 
 }
 
+
+/* ==========================================
+   RECONNECTION
+========================================== */
+
+function scheduleReconnect() {
+
+  if (reconnectScheduled) {
+    return;
+  }
+
+  reconnectScheduled = true;
+
+  const delay = reconnectDelay;
+
+  console.log(
+    `[Prahari WS] Reconnecting in ${delay}ms`
+  );
+
+  reconnectTimer = setTimeout(() => {
+
+    reconnectScheduled = false;
+
+    connectPrahariWebSocket();
+
+  }, delay);
+
+  reconnectDelay = Math.min(
+    reconnectDelay * 2,
+    MAX_RECONNECT_DELAY
+  );
+
+}
 
 
 /* ==========================================
@@ -2637,9 +2782,4 @@ ensureSecurityUI();
 
 renderAdmin();
 
-refresh();
-
-setInterval(
-  refresh,
-  POLL_MS
-);
+connectPrahariWebSocket();

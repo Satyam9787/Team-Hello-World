@@ -5,11 +5,19 @@
 #include "AuditLogger.h"
 #include "BatchRedisStore.h"
 
+#include <atomic>
+
 void registerRoutes(
     crow::SimpleApp& app,
     RedisManager& RedisManager,
     AuditLogger& AuditLogger,
     BatchRedisStore& batchStore
+);
+
+// Background Redis -> WebSocket publisher
+void publishBatches(
+    BatchRedisStore& batchStore,
+    std::atomic<bool>& running
 );
 
 // Public Routes

@@ -53,6 +53,18 @@ void register_Front_Routes(crow::SimpleApp& app,RedisManager &RedisManager)
 
            return res;
      });
+     CROW_ROUTE(app, "/Front_analysis.css")([]()
+     {
+           ifstream file(Paths::CSS + "Front_analysis.css");
+
+           stringstream buffer;
+           buffer << file.rdbuf();
+
+           crow::response res(buffer.str());
+           res.set_header("Content-Type", "text/css");
+
+           return res;
+     });
      CROW_ROUTE(app, "/Front.js")([]()
      {
            ifstream file(Paths::JS+ "Front.js");
@@ -69,6 +81,19 @@ void register_Front_Routes(crow::SimpleApp& app,RedisManager &RedisManager)
      CROW_ROUTE(app, "/Front_fx.js")([]()
      {
            ifstream file(Paths::JS+ "Front_fx.js");
+
+           stringstream buffer;
+           buffer << file.rdbuf();
+
+           crow::response res(buffer.str());
+           res.set_header("Content-Type", "text/js");
+
+           return res;
+     });
+
+     CROW_ROUTE(app, "/Front_analysis.js")([]()
+     {
+           ifstream file(Paths::JS+ "Front_analysis.js");
 
            stringstream buffer;
            buffer << file.rdbuf();

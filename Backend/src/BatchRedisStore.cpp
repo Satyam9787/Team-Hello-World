@@ -80,6 +80,8 @@ bool BatchRedisStore::getNextBatch(BatchRecord& batch)
             return false;
         }
 
+        const std::string actualRedisId = item.first;
+
         std::string payload;
 
         for (const auto& field : *item.second) {
@@ -89,23 +91,47 @@ bool BatchRedisStore::getNextBatch(BatchRecord& batch)
             }
         }
 
-        if (payload.empty()) {
-            std::cerr << "[BatchRedisStore] Empty payload in "
-                      << stream << " | ID: "
-                      << item.first << '\n';
+        /*
+         * DEMO MODE:
+         *
+         * Redis entry is acknowledged and deleted immediately
+         * after backend consumption.
+         *
+         * Frontend no longer performs ACK requests.
+         */
+
+        auto acknowledged = redis.xack(
+            stream,
+            group,
+            actualRedisId
+        );
+
+        if (acknowledged == 0) {
+            std::cerr << "[BatchRedisStore] ACK failed: "
+                      << actualRedisId << '\n';
+
             return false;
         }
 
-        // Prefix se ACK ke waqt correct stream identify hoga.
-        batch.redisId = source + ":" + item.first;
-        batch.payload = std::move(payload);
+        redis.xdel(stream, actualRedisId);
 
-        std::cout << "[BatchRedisStore] Delivered from "
-                  << stream << " | Redis ID: "
-                  << item.first << '\n';
+        std::cout << "[BatchRedisStore] Consumed and deleted"
+                  << " | Source: " << source
+                  << " | Redis ID: " << actualRedisId << '\n';
+
+        if (payload.empty()) {
+            std::cerr << "[BatchRedisStore] Empty payload: "
+                      << actualRedisId << '\n';
+
+            return false;
+        }
+
+        batch.redisId = source + ":" + actualRedisId;
+        batch.payload = std::move(payload);
 
         return true;
     };
+
 
     const std::string& firstStream =
         preferRemote ? remoteStreamName : hostStreamName;
@@ -116,6 +142,7 @@ bool BatchRedisStore::getNextBatch(BatchRecord& batch)
     const std::string& firstSource =
         preferRemote ? "remote" : "host";
 
+
     const std::string& secondStream =
         preferRemote ? hostStreamName : remoteStreamName;
 
@@ -125,82 +152,27 @@ bool BatchRedisStore::getNextBatch(BatchRecord& batch)
     const std::string& secondSource =
         preferRemote ? "host" : "remote";
 
-    // 1. Dono streams mein pending batches pehle check karo.
-    if (tryRead(firstStream, firstGroup, "0", firstSource) ||
-        tryRead(secondStream, secondGroup, "0", secondSource)) {
 
+    // 1. Check previously pending entries first.
+    if (
+        tryRead(firstStream, firstGroup, "0", firstSource) ||
+        tryRead(secondStream, secondGroup, "0", secondSource)
+    ) {
         preferRemote = !preferRemote;
         return true;
     }
 
-    // 2. Pending nahi mile toh naye batches check karo.
-    if (tryRead(firstStream, firstGroup, ">", firstSource) ||
-        tryRead(secondStream, secondGroup, ">", secondSource)) {
 
+    // 2. Read new entries.
+    if (
+        tryRead(firstStream, firstGroup, ">", firstSource) ||
+        tryRead(secondStream, secondGroup, ">", secondSource)
+    ) {
         preferRemote = !preferRemote;
         return true;
     }
 
     return false;
-}
-
-
-bool BatchRedisStore::acknowledgeBatch(
-    const std::string& redisId
-) {
-    std::lock_guard<std::mutex> lock(mutex);
-
-    const auto separator = redisId.find(':');
-
-    if (separator == std::string::npos) {
-        std::cerr << "[BatchRedisStore] Invalid Redis ID token\n";
-        return false;
-    }
-
-    const std::string source =
-        redisId.substr(0, separator);
-
-    const std::string actualRedisId =
-        redisId.substr(separator + 1);
-
-    std::string stream;
-    std::string group;
-
-    if (source == "host") {
-        stream = hostStreamName;
-        group = hostGroupName;
-    }
-    else if (source == "remote") {
-        stream = remoteStreamName;
-        group = remoteGroupName;
-    }
-    else {
-        std::cerr << "[BatchRedisStore] Unknown batch source: "
-                  << source << '\n';
-        return false;
-    }
-
-    if (actualRedisId.empty()) {
-        return false;
-    }
-
-    auto acknowledged = redis.xack(
-        stream,
-        group,
-        actualRedisId
-    );
-
-    if (acknowledged == 0) {
-        return false;
-    }
-
-    redis.xdel(stream, actualRedisId);
-
-    std::cout << "[BatchRedisStore] ACK and DELETE successful"
-              << " | Source: " << source
-              << " | Redis ID: " << actualRedisId << '\n';
-
-    return true;
 }
 
 

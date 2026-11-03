@@ -12,6 +12,8 @@
 
   <!-- Use your updated CSS file -->
   <link rel="stylesheet" href="Front.css">
+  <!-- Logs analysis window styles -->
+  <link rel="stylesheet" href="Front_analysis.css">
 </head>
 
 <body>
@@ -83,6 +85,13 @@
 
       <button class="summary-btn" id="openSummary">
         Systems summary
+      </button>
+
+      <button class="summary-btn analysis-btn" id="openAnalysis">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polyline points="2,17 7,11 11,14 16,5 22,10"/>
+        </svg>
+        Logs analysis
       </button>
     </div>
 
@@ -249,18 +258,18 @@
 
         <p>
           <strong>Name:</strong>
-          <span>ADMIN_NAME</span>
+          <span>Prakhar Trivedi</span>
         </p>
 
         <p>
           <strong>Department:</strong>
-          <span>ADMIN_DEPARTMENT</span>
+          <span>Computer Science Engineering(C.S.E)</span>
         </p>
 
         <p>
           <strong>Email:</strong>
           <a href="mailto:ADMIN_EMAIL">
-            ADMIN_EMAIL
+            prakhartrivedi9369@gmail.com
           </a>
         </p>
 
@@ -288,10 +297,96 @@
   </div>
 </div>
 
+<!-- Logs analysis modal (live safety graph) -->
+<div
+  class="modal"
+  id="analysisModal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="anTitle"
+  hidden>
+
+  <div class="win big an-win">
+    <div class="titlebar">
+      <span id="anTitle">Logs analysis &middot; Live safety timeline</span>
+      <button class="x" data-close aria-label="Close">&times;</button>
+    </div>
+
+    <div class="win-body">
+
+      <div class="an-controls">
+        <div class="an-ranges" id="anRanges">
+          <button type="button" class="an-tab" data-range="1m">1 min</button>
+          <button type="button" class="an-tab on" data-range="5m">5 min</button>
+          <button type="button" class="an-tab" data-range="15m">15 min</button>
+          <button type="button" class="an-tab" data-range="1h">1 hour</button>
+        </div>
+
+        <div class="an-tools">
+          <label class="an-sel">
+            <span>System</span>
+            <select id="anSys"><option value="all">All systems</option></select>
+          </label>
+          <button type="button" class="an-btn" id="anPause">Pause</button>
+          <button type="button" class="an-btn" id="anDemo">Demo feed: off</button>
+        </div>
+      </div>
+
+      <div class="an-top">
+        <div class="an-index" id="anIndexBox">
+          <small>Safety index</small>
+          <div class="an-index-row">
+            <b id="anIndex">&mdash;</b>
+            <em id="anDelta"></em>
+          </div>
+          <span class="an-state" id="anState">No data</span>
+        </div>
+
+        <div class="an-stats">
+          <div class="fig r"><b id="anUnsafe">0</b><span>Unsafe events</span></div>
+          <div class="fig c"><b id="anTotal">0</b><span>Total events</span></div>
+          <div class="fig g"><b class="an-time" id="anSafest">&mdash;</b><span>Safest moment</span></div>
+          <div class="fig m"><b class="an-time" id="anRisk">&mdash;</b><span>Riskiest moment</span></div>
+        </div>
+      </div>
+
+      <div class="an-main">
+        <div class="an-screen" id="anScreen">
+          <canvas id="anCanvas" class="an-chart"></canvas>
+          <div class="an-live" id="anLiveTag">LIVE</div>
+          <div class="an-empty" id="anEmpty">AWAITING DATA</div>
+        </div>
+
+        <aside class="an-feed">
+          <h4>Live tape</h4>
+          <ul id="anFeed"></ul>
+        </aside>
+      </div>
+
+      <div class="an-legend">
+        <span class="safe"><i></i>safe</span>
+        <span class="partial"><i></i>partial</span>
+        <span class="unknown"><i></i>unknown</span>
+        <span class="unsafe"><i></i>unsafe</span>
+      </div>
+
+      <p class="hint an-note">
+        Safety index (0&ndash;100) = safe events count fully, partial and unknown count half,
+        unsafe count zero. Line above 80 is safe, 50&ndash;80 watch, below 50 danger.
+        Bars at the bottom show event volume per time slot.
+      </p>
+
+    </div>
+  </div>
+</div>
+
 <!-- Process reason modal is created dynamically by Front.js -->
 
 <!-- Load the updated JavaScript -->
 <script src="Front.js"></script>
+
+<!-- Logs analysis: live graph (reads data from Front.js) -->
+<script src="Front_analysis.js"></script>
 
 <!-- Keep this if you use your existing visual effects script -->
 <script src="Front_fx.js"></script>

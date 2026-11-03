@@ -14,14 +14,14 @@ class BatchRedisStore {
 public:
     explicit BatchRedisStore(const std::string& redisUri);
 
+    // Reads a batch and immediately ACKs + deletes it from Redis.
     bool getNextBatch(BatchRecord& batch);
-    bool acknowledgeBatch(const std::string& redisId);
 
     bool ingestBatch(
-    const std::string& batchId,
-    const std::string& payload,
-    std::string& redisId,
-    bool& duplicate
+        const std::string& batchId,
+        const std::string& payload,
+        std::string& redisId,
+        bool& duplicate
     );
 
 private:

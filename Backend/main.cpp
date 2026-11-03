@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <atomic>
 
 using namespace std;
 
@@ -79,6 +80,16 @@ int main() {
         batchStore
     );
 
+    // ================= WEBSOCKET PUBLISHER =================
+
+    std::atomic<bool> publisherRunning{true};
+
+    std::thread batchPublisher(
+        publishBatches,
+        std::ref(batchStore),
+        std::ref(publisherRunning)
+    );
+
     cout << "[PRAHARI] Starting server...\n";
 
     app.ssl_file(
@@ -89,6 +100,15 @@ int main() {
     .port(18080)
     .multithreaded()
     .run();
+
+    // ================= STOP WEBSOCKET PUBLISHER =================
+
+    publisherRunning.store(false);
+
+    if (batchPublisher.joinable()) {
+        batchPublisher.join();
+    }
+
 
     // ================= SHUTDOWN =================
 

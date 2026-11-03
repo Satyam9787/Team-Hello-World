@@ -1,107 +1,93 @@
 #include "routes.h"
 
 #include <nlohmann/json.hpp>
+
+#include <atomic>
+#include <chrono>
 #include <iostream>
+#include <mutex>
 #include <string>
+#include <thread>
+#include <unordered_set>
 
 using json = nlohmann::json;
+
+namespace {
+
+std::unordered_set<crow::websocket::connection*> clients;
+std::mutex clientsMutex;
+
+
+bool hasConnectedClients()
+{
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    return !clients.empty();
+}
+
+
+void broadcastMessage(const std::string& message)
+{
+    std::lock_guard<std::mutex> lock(clientsMutex);
+
+    for (auto* client : clients) {
+        if (client != nullptr) {
+            client->send_text(message);
+        }
+    }
+}
+
+} // namespace
+
 
 void register_Ebpf_Events_Routes(
     crow::SimpleApp& app,
     BatchRedisStore& batchStore
 ) {
-    // ==================================
-    // GET NEXT BATCH
-    // ==================================
-
-    CROW_ROUTE(app, "/api/batches/next")
-    .methods(crow::HTTPMethod::GET)
-    ([&batchStore]() {
-
-        try {
-            BatchRecord batch;
-
-            if (!batchStore.getNextBatch(batch)) {
-                json response = {
-                    {"success", true},
-                    {"available", false},
-                    {"message", "No batch available"}
-                };
-
-                return crow::response(200, response.dump());
-            }
-
-            json payload = json::parse(batch.payload);
-
-            json response = {
-                {"success", true},
-                {"available", true},
-                {"redis_id", batch.redisId},
-                {"batch", payload}
-            };
-
-            return crow::response(200, response.dump());
-        }
-        catch (const std::exception& e) {
-            std::cerr << "[GET /api/batches/next] "
-                      << e.what() << '\n';
-
-            json response = {
-                {"success", false},
-                {"message", "Internal server error"}
-            };
-
-            return crow::response(500, response.dump());
-        }
-    });
-
 
     // ==================================
-    // ACKNOWLEDGE BATCH
+    // WEBSOCKET CONNECTION
     // ==================================
 
-    CROW_ROUTE(app, "/api/batches/ack")
-    .methods(crow::HTTPMethod::POST)
-    ([&batchStore](const crow::request& req) {
+    CROW_WEBSOCKET_ROUTE(app, "/ws")
 
-        try {
-            json body = json::parse(req.body);
+    .onopen([](crow::websocket::connection& conn) {
 
-            if (!body.is_object() ||
-                !body.contains("redis_id") ||
-                !body["redis_id"].is_string()) {
+    size_t clientCount;
 
-                return crow::response(
-                    400,
-                    R"({"success":false,"message":"redis_id is required"})"
-                );
-            }
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        clients.insert(&conn);
+        clientCount = clients.size();
+    }
 
-            const std::string redisId = body["redis_id"];
+    std::cout << "[PRAHARI WS] Dashboard connected"
+              << " | IP: " << conn.get_remote_ip()
+              << " | Clients: " << clientCount
+              << '\n';
+})
 
-            bool acknowledged =
-                batchStore.acknowledgeBatch(redisId);
+    .onclose([](
+        crow::websocket::connection& conn,
+        const std::string& reason,
+        uint16_t
+    ) {
 
-            json response = {
-                {"success", acknowledged},
-                {"acknowledged", acknowledged},
-                {"redis_id", redisId}
-            };
+        std::lock_guard<std::mutex> lock(clientsMutex);
 
-            return crow::response(
-                acknowledged ? 200 : 404,
-                response.dump()
-            );
-        }
-        catch (const std::exception& e) {
-            std::cerr << "[POST /api/batches/ack] "
-                      << e.what() << '\n';
+        clients.erase(&conn);
 
-            return crow::response(
-                400,
-                R"({"success":false,"message":"Invalid request"})"
-            );
-        }
+        std::cout << "[PRAHARI WS] Dashboard disconnected"
+                  << " | Reason: " << reason
+                  << " | Clients: " << clients.size()
+                  << '\n';
+    })
+
+    .onmessage([](
+        crow::websocket::connection&,
+        const std::string&,
+        bool
+    ) {
+        // Dashboard currently only receives batches.
     });
 
 
@@ -139,7 +125,6 @@ void register_Ebpf_Events_Routes(
                 );
             }
 
-            // Actual arrays ke according counts update karo.
             body["process_count"] =
                 body["process_logs"].size();
 
@@ -181,4 +166,65 @@ void register_Ebpf_Events_Routes(
             );
         }
     });
+}
+
+
+// ==================================
+// BACKGROUND REDIS -> WEBSOCKET
+// ==================================
+
+void publishBatches(
+    BatchRedisStore& batchStore,
+    std::atomic<bool>& running
+) {
+    std::cout << "[PRAHARI WS] Batch publisher started\n";
+
+    while (running.load()) {
+
+        // Don't consume Redis batches without a dashboard.
+        if (!hasConnectedClients()) {
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(100)
+            );
+            continue;
+        }
+
+        try {
+            BatchRecord batch;
+
+            if (!batchStore.getNextBatch(batch)) {
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(5)
+                );
+                continue;
+            }
+
+            json parsedBatch = json::parse(batch.payload);
+
+            json message = {
+                {"type", "batch"},
+                {"batch", parsedBatch}
+            };
+
+            broadcastMessage(message.dump());
+
+            std::cout << "[PRAHARI WS] Batch pushed"
+                      << " | Redis ID: " << batch.redisId
+                      << " | Host: "
+                      << parsedBatch.value("hostname", "unknown")
+                      << " | Host ID: "
+                      << parsedBatch.value("host_id", "unknown")
+                      << '\n';
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[PRAHARI WS] Publisher error: "
+                      << e.what() << '\n';
+
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(100)
+            );
+        }
+    }
+
+    std::cout << "[PRAHARI WS] Batch publisher stopped\n";
 }
